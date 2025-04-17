@@ -11,7 +11,14 @@
     from {
         transform: rotate(0deg);
     }
-    to {
-        transform: rotate(360deg);
+    50% {
+        transform: rotate(180deg);
     }
+    to {
+        transform: rotate(0deg);
+    }
+}
+.rotating-ball:hover {
+    animation: rotate 8s linear infinite; /* Speed up the rotation on hover */
+    background-color: green; /* Change color on hover */
 }
