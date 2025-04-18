@@ -1,10 +1,10 @@
 .rotating-ball {
     width: 100px;
     height: 100px;
-    background-color: red;
-    border-radius: 50%;
-    border: 5px dashed blue; /* Add a border for better visibility */
-    animation: rotate 2s linear infinite;
+    background-color: red !important;
+    border-radius: 50% !important;
+    border: 5px dashed blanchedalmond!important; /* Add a border for better visibility */
+    animation: rotate 10s linear infinite !important;
 }
 
 @keyframes rotate {
@@ -19,6 +19,20 @@
     }
 }
 .rotating-ball:hover {
-    animation: rotate 8s linear infinite; /* Speed up the rotation on hover */
+    animation: rotate 1s linear infinite; /* Speed up the rotation on hover */
     background-color: green; /* Change color on hover */
 }
+
+.container {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    background-color: dodgerblue;
+    padding: 10px;
+  }
+.container > div {
+    background-color: #f1f1f1;
+    border: 1px solid black;
+    padding: 10px;
+    font-size: 30px;
+    text-align: center;
+  }
