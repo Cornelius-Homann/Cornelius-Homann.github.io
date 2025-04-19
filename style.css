@@ -52,3 +52,35 @@ body {
     border-radius: 5px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
+
+/* Add responsive design for smaller screens */
+@media (max-width: 768px) {
+    .game-board {
+        grid-template-rows: auto auto auto; /* Keep the three rows */
+        grid-gap: 10px; /* Reduce spacing between rows */
+    }
+
+    .player {
+        grid-template-columns: 1fr; /* Stack cards in a single column */
+        grid-gap: 5px; /* Reduce spacing between cards */
+    }
+
+    .stacks {
+        flex-direction: column; /* Stack draw and discard stacks vertically */
+        gap: 20px; /* Reduce spacing between stacks */
+    }
+
+    .card-slot img, .stacks img {
+        width: 80px; /* Reduce card size for smaller screens */
+    }
+}
+
+@media (max-width: 480px) {
+    .game-board {
+        grid-gap: 5px; /* Further reduce spacing for very small screens */
+    }
+
+    .card-slot img, .stacks img {
+        width: 60px; /* Further reduce card size */
+    }
+}
