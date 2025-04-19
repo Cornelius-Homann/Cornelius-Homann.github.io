@@ -5,15 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
     <script src="script.js"></script>
-    <title>1</title>
+    <title>Card Game Layout</title>
 </head>
 <body>
-    <div class="container">
-        <div class="rotating-ball"></div>
-        <div><p>b</p></div>
-        <div><p>c</p></div>
-        <div><p>d</p></div>
-        <div><p>e</p></div>
+    <div class="game-board">
+        <!-- Player 1's cards -->
+        <div class="player player-1">
+            <div class="card-slot"><img src="karten/1.png" alt="Card 1"></div>
+            <div class="card-slot"><img src="karten/2.png" alt="Card 2"></div>
+            <div class="card-slot"><img src="karten/3.png" alt="Card 3"></div>
+            <div class="card-slot"><img src="karten/4.png" alt="Card 4"></div>
+        </div>
+
+        <!-- Draw and discard stacks -->
+        <div class="stacks">
+            <div class="draw-stack"><img src="karten/back.png" alt="Draw Stack"></div>
+            <div class="discard-stack"><img src="karten/0.png" alt="Discard Stack"></div>
+        </div>
+
+        <!-- Player 2's cards -->
+        <div class="player player-2">
+            <div class="card-slot"><img src="karten/5.png" alt="Card 5"></div>
+            <div class="card-slot"><img src="karten/6.png" alt="Card 6"></div>
+            <div class="card-slot"><img src="karten/7.png" alt="Card 7"></div>
+            <div class="card-slot"><img src="karten/8.png" alt="Card 8"></div>
+        </div>
     </div>
 </body>
 </html>

@@ -1,38 +1,54 @@
-.rotating-ball {
-    width: 100px;
-    height: 100px;
-    background-color: red !important;
-    border-radius: 50% !important;
-    border: 5px dashed blanchedalmond!important; /* Add a border for better visibility */
-    animation: rotate 10s linear infinite !important;
-}
-
-@keyframes rotate {
-    from {
-        transform: rotate(0deg);
-    }
-    50% {
-        transform: rotate(180deg);
-    }
-    to {
-        transform: rotate(0deg);
-    }
-}
-.rotating-ball:hover {
-    animation: rotate 1s linear infinite; /* Speed up the rotation on hover */
-    background-color: green; /* Change color on hover */
+/* CSS Document */
+body {
+    background-image: url('table.png'); /* Set table.png as the background */
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh; /* Full viewport height */
 }
 
 .container {
     display: grid;
-    grid-template-columns: auto auto auto;
-    background-color: dodgerblue;
+    grid-template-columns: auto auto auto auto;
     padding: 10px;
-  }
+}
+
 .container > div {
-    background-color: #f1f1f1;
     border: 1px solid black;
     padding: 10px;
     font-size: 30px;
     text-align: center;
-  }
+}
+
+.game-board {
+    display: grid;
+    grid-template-rows: auto auto auto; /* Three rows: Player 1, stacks, Player 2 */
+    grid-gap: 20px; /* Space between rows */
+    text-align: center;
+}
+
+.player {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr); /* 2x2 grid for cards */
+    grid-gap: 10px; /* Space between cards */
+    justify-content: center;
+}
+
+.stacks {
+    display: flex;
+    justify-content: center;
+    gap: 50px; /* Space between draw and discard stacks */
+}
+
+.card-slot img, .stacks img {
+    width: 100px; /* Set card width */
+    height: auto; /* Maintain aspect ratio */
+    border: 1px solid black;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
