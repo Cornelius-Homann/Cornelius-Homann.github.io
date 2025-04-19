@@ -61,12 +61,13 @@ body {
     }
 
     .player {
-        grid-template-columns: 1fr; /* Stack cards in a single column */
-        grid-gap: 5px; /* Reduce spacing between cards */
+        grid-template-columns: repeat(2, 1fr); /* Maintain a 2x2 grid for cards */
+        grid-gap: 10px; /* Adjust spacing between cards */
+        justify-content: center;
     }
 
     .stacks {
-        flex-direction: column; /* Stack draw and discard stacks vertically */
+        flex-direction: row; /* Keep draw and discard stacks side by side */
         gap: 20px; /* Reduce spacing between stacks */
     }
 
@@ -78,6 +79,16 @@ body {
 @media (max-width: 480px) {
     .game-board {
         grid-gap: 5px; /* Further reduce spacing for very small screens */
+    }
+
+    .player {
+        grid-template-columns: repeat(2, 1fr); /* Maintain a 2x2 grid for cards */
+        grid-gap: 5px; /* Further reduce spacing between cards */
+    }
+
+    .stacks {
+        flex-direction: row; /* Keep draw and discard stacks side by side */
+        gap: 10px; /* Further reduce spacing between stacks */
     }
 
     .card-slot img, .stacks img {
