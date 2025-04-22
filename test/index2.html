@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Write and Fetch Number</title>
+  <!-- Include Firebase SDK -->
+  <script type="module">
+    // Import Firebase modules
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+
+    // Your Firebase configuration
+    const firebaseConfig = {
+        apiKey: "AIzaSyD6d3XpQRiZS6ZX2d_8soi8XfUyCzGt4R4",
+        authDomain: "cornelius-cabo.firebaseapp.com",
+        databaseURL: "https://cornelius-cabo-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "cornelius-cabo",
+        storageBucket: "cornelius-cabo.firebasestorage.app",
+        messagingSenderId: "817971372989",
+        appId: "1:817971372989:web:3d94b5a5ff3ca225fce8d4"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // Fetch a number from a specific document
+    async function fetchNumber() {
+      const docRef = doc(db, 'myCollection', 'myDocument'); // Reference to the document
+      const docSnap = await getDoc(docRef); // Fetch the document
+
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const myNumber = data.myNumber; // Assuming the field is called "myNumber"
+        console.log('Fetched number:', myNumber);
+        document.getElementById('fetchedNumber').textContent = myNumber; // Display the number
+      } else {
+        console.log('No such document!');
+        document.getElementById('fetchedNumber').textContent = 'No data found';
+      }
+    }
+
+    // Write a new number to Firestore
+    async function writeNumber() {
+      const newNumber = document.getElementById('numberInput').value; // Get the number from the input field
+      const docRef = doc(db, 'myCollection', 'myDocument'); // Reference to the document
+
+      try {
+        await setDoc(docRef, { myNumber: parseInt(newNumber) }); // Write the number to Firestore
+        console.log('Number written successfully:', newNumber);
+        fetchNumber(); // Refresh the displayed number
+      } catch (error) {
+        console.error('Error writing number:', error);
+      }
+    }
+
+    // Attach functions to the global window object
+    window.writeNumber = writeNumber;
+    window.fetchNumber = fetchNumber;
+
+    fetchNumber(); // Fetch the number on page load
+  </script>
+</head>
+<body>
+  <h1>Write and Fetch Number from Firestore</h1>
+  <p>Fetched Number: <span id="fetchedNumber">Loading...</span></p>
+  <input type="number" id="numberInput" placeholder="Enter a new number">
+  <button onclick="writeNumber()">Submit Number</button>
+</body>
+</html>

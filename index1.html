@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simple Firebase Example</title>
+</head>
+<body>
+  <h1>Enter a Number</h1>
+  <input type="number" id="numberInput" placeholder="Enter a number">
+  <button onclick="submitNumber()">Submit</button>
+
+  <p>Your number: <span id="myNumber">?</span></p>
+  <p>Room's number: <span id="roomNumber">?</span></p>
+
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js"></script>
+
+  
+
+  <script>
+    // ✨ Replace this with YOUR Firebase config!
+    import { initializeApp } from "firebase/app";
+    import { getDatabase, ref, set } from "firebase/database";
+    
+    const firebaseConfig = {
+        apiKey: "AIzaSyD6d3XpQRiZS6ZX2d_8soi8XfUyCzGt4R4",
+        authDomain: "cornelius-cabo.firebaseapp.com",
+        databaseURL: "https://cornelius-cabo-default-rtdb.europe-west1.firebasedatabase.app",
+        projectId: "cornelius-cabo",
+        storageBucket: "cornelius-cabo.firebasestorage.app",
+        messagingSenderId: "817971372989",
+        appId: "1:817971372989:web:a7f50e3f65018a00fce8d4"
+      };
+
+    // ✅ 1. Initialize Firebase
+    const app = firebase.initializeApp(firebaseConfig);
+
+    // ✅ 2. Connect to Realtime Database
+    const db = firebase.database();
+
+    // 🏠 Get room code from URL, or use "default"
+    const roomCode = new URLSearchParams(window.location.search).get("room") || "default";
+    const roomRef = db.ref("rooms/" + roomCode);
+
+    // 🎯 Submit a number to the database
+    function submitNumber() {
+      const number = document.getElementById("numberInput").value;
+      roomRef.set({ number: number });
+      document.getElementById("myNumber").textContent = number;
+    }
+
+    // 👀 Listen for changes in the room's number
+    roomRef.on("value", (snapshot) => {
+      const data = snapshot.val() || {};
+      document.getElementById("roomNumber").textContent = data.number || "?";
+    });
+  </script>
+</body>
+</html>

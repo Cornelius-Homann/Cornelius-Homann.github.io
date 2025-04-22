@@ -2,7 +2,7 @@
 body {
     background-image: url('table.png'); /* Set table.png as the background */
     background-size: cover;
-    background-repeat: no-repeat;
+    background-repeat: repeat;
     background-position: center;
     margin: 0;
     padding: 0;
@@ -61,12 +61,14 @@ body {
     }
 
     .player {
+        display: grid; /* Ensure the player container uses grid layout */
         grid-template-columns: repeat(2, 1fr); /* Maintain a 2x2 grid for cards */
         grid-gap: 10px; /* Adjust spacing between cards */
         justify-content: center;
     }
 
     .stacks {
+        display: flex; /* Ensure stacks remain side by side */
         flex-direction: row; /* Keep draw and discard stacks side by side */
         gap: 20px; /* Reduce spacing between stacks */
     }
@@ -82,11 +84,14 @@ body {
     }
 
     .player {
+        display: grid; /* Ensure the player container uses grid layout */
         grid-template-columns: repeat(2, 1fr); /* Maintain a 2x2 grid for cards */
         grid-gap: 5px; /* Further reduce spacing between cards */
+        justify-content: center;
     }
 
     .stacks {
+        display: flex; /* Ensure stacks remain side by side */
         flex-direction: row; /* Keep draw and discard stacks side by side */
         gap: 10px; /* Further reduce spacing between stacks */
     }
