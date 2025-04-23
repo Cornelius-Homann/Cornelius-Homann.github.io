@@ -1,0 +1,101 @@
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Arial', sans-serif;
+    background: url('pattern.png') no-repeat center center fixed; /* Center the image and prevent tiling */
+    background-size: cover; /* Stretch the image to cover the entire screen */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: #f9f871; /* Accent yellow for text */
+}
+
+.container {
+    text-align: center;
+    background: #8b0000; /* Dark red background for the container */
+    border-radius: 15px;
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.5);
+    padding: 30px;
+    width: 90%;
+    max-width: 500px;
+    border: 5px solid #f9f871; /* Yellow border for emphasis */
+}
+
+.header h1 {
+    font-size: 3rem;
+    color: #f9f871; /* Yellow text for the header */
+    margin-bottom: 10px;
+    text-shadow: 3px 3px 5px rgba(0, 0, 0, 0.7); /* Bold shadow for text */
+}
+
+.header p {
+    font-size: 1.2rem;
+    color: #ffffff; /* White for the description */
+    margin-bottom: 20px;
+}
+
+.form-container {
+    margin-bottom: 20px;
+}
+
+#gameCode {
+    width: 80%;
+    padding: 10px;
+    font-size: 1rem;
+    border: 2px solid #f9f871; /* Yellow border */
+    border-radius: 5px;
+    margin-bottom: 20px;
+    background-color: #654353; /* Muted purple background */
+    color: #f9f871; /* Yellow text */
+    text-align: center;
+}
+
+#gameCode:focus {
+    outline: none;
+    border-color: #db7d3d; /* Orange border on focus */
+    background-color: #7e3b47; /* Slightly lighter purple on focus */
+}
+
+.button-group {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+button {
+    flex: 1;
+    padding: 10px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #f9f871; /* Yellow text */
+    background-color: #8b0000; /* Dark red background */
+    border: 2px solid #f9f871; /* Yellow border */
+    border-radius: 5px;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+button:hover {
+    background-color: #db7d3d; /* Orange on hover */
+    transform: scale(1.05); /* Slight zoom effect */
+}
+
+.image-container {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.image-container img {
+    width: 60px;
+    height: auto;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease;
+}
+
+.image-container img:hover {
+    transform: rotate(5deg) scale(1.1); /* Slight rotation and zoom on hover */
+}
