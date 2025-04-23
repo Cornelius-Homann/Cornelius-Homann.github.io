@@ -18,34 +18,9 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 // Fetch a number from a specific document
-async function fetchNumber() {
-    const docRef = doc(db, 'myCollection', 'myDocument'); // Reference to the document
-    const docSnap = await getDoc(docRef); // Fetch the document
-
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        const myNumber = data.myNumber; // Assuming the field is called "myNumber"
-        console.log('Fetched number:', myNumber);
-        document.getElementById('fetchedNumber').textContent = myNumber; // Display the number
-    } else {
-        console.log('No such document!');
-        document.getElementById('fetchedNumber').textContent = 'No data found';
-    }
-}
 
 // Write a new number to Firestore
-async function writeNumber() {
-    const newNumber = document.getElementById('numberInput').value; // Get the number from the input field
-    const docRef = doc(db, 'myCollection', 'myDocument'); // Reference to the document
 
-    try {
-        await setDoc(docRef, { myNumber: parseInt(newNumber) }); // Write the number to Firestore
-        console.log('Number written successfully:', newNumber);
-        fetchNumber(); // Refresh the displayed number
-    } catch (error) {
-        console.error('Error writing number:', error);
-    }
-}
 
 // Function to fetch the card stack from Firestore
 async function fetchCardStack() {
@@ -186,18 +161,31 @@ async function updateDiscardStackDisplay() {
     try {
         // Fetch the current discard stack
         const discardStackSnap = await getDoc(discardStackRef);
+        const discardStackImg = document.querySelector('#discard-stack img');
+
         if (discardStackSnap.exists()) {
             const discardStack = discardStackSnap.data().cards;
 
-            // Get the latest card (last element in the array)
-            const latestCard = discardStack[discardStack.length - 1] || '0'; // Default to '0' if empty
+            // Check if the discard stack is empty
+            if (!Array.isArray(discardStack) || discardStack.length === 0) {
+                // Set the discard stack to display the empty image
+                discardStackImg.src = 'karten/empty.png';
+                discardStackImg.setAttribute('data-card', 'empty');
+                console.log('Discard stack is empty.');
+            } else {
+                // Get the latest card (last element in the array)
+                const latestCard = discardStack[discardStack.length - 1];
 
-            // Update the discard stack image
-            const discardStackImg = document.querySelector('#discard-stack img');
-            discardStackImg.src = `karten/${latestCard}.png`;
-            discardStackImg.setAttribute('data-card', latestCard);
+                // Update the discard stack image
+                discardStackImg.src = `karten/${latestCard}.png`;
+                discardStackImg.setAttribute('data-card', latestCard);
+                console.log(`Updated discard stack display to show card: ${latestCard}`);
+            }
         } else {
-            console.log('Discard stack is empty.');
+            // If the discard stack document does not exist, treat it as empty
+            discardStackImg.src = 'karten/empty.png';
+            discardStackImg.setAttribute('data-card', 'empty');
+            console.log('Discard stack document does not exist.');
         }
     } catch (error) {
         console.error('Error updating discard stack display:', error);
@@ -229,12 +217,10 @@ function setupCardEventListeners() {
 document.addEventListener('DOMContentLoaded', async () => {
     setupCardEventListeners();
     await updateDiscardStackDisplay(); // Update discard stack display on page load
-    fetchNumber();
+    
 });
 
 // Attach functions to the global window object
-window.writeNumber = writeNumber;
-window.fetchNumber = fetchNumber;
 window.fetchCardStack = fetchCardStack;
 window.uploadRandomizedCardStack = uploadRandomizedCardStack;
 window.addToDiscardStack = addToDiscardStack;
