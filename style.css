@@ -1,99 +1,106 @@
-/* CSS Document */
-body {
-    background-image: url('table.png'); /* Set table.png as the background */
-    background-size: cover;
-    background-repeat: repeat;
-    background-position: center;
+/* General styles for html and body */
+html, body {
     margin: 0;
     padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden; /* Prevent scrollbars during rotation */
     display: flex;
     justify-content: center;
     align-items: center;
-    height: 100vh; /* Full viewport height */
+    background-image: url('table.png'); /* Set table.png as the background */
+    background-size: cover;
+    background-repeat: no-repeat; /* Prevent tiling */
+    background-position: center;
 }
 
-.container {
-    display: grid;
-    grid-template-columns: auto auto auto auto;
-    padding: 10px;
+/* Page container styles */
+#page-container {
+    display: flex;
+    flex-direction: column; /* Stack content vertically */
+    justify-content: center;
+    align-items: center;
+    width: 100%; /* Full width */
+    height: 100%; /* Full height */
+    position: relative; /* Allow transform to work properly */
+    transform-origin: center; /* Set the rotation origin to the center */
+    transition: transform 0.5s ease; /* Smooth rotation */
+    will-change: transform; /* Optimize for transform changes */
+    overflow: hidden; /* Prevent content overflow during rotation */
 }
 
-.container > div {
-    border: 1px solid black;
-    padding: 10px;
-    font-size: 30px;
-    text-align: center;
-}
-
+/* Game board layout */
 .game-board {
     display: grid;
     grid-template-rows: auto auto auto; /* Three rows: Player 1, stacks, Player 2 */
-    grid-gap: 20px; /* Space between rows */
+    grid-gap: 10px; /* Reduce spacing between rows */
+    justify-items: center; /* Center items horizontally */
+    align-items: center; /* Center items vertically */
+    width: 90%; /* Slightly smaller width to fit on the page */
+    height: 90%; /* Slightly smaller height to fit on the page */
     text-align: center;
 }
 
+/* Player layout */
 .player {
     display: grid;
     grid-template-columns: repeat(2, 1fr); /* 2x2 grid for cards */
-    grid-gap: 10px; /* Space between cards */
+    grid-gap: 8px; /* Reduce spacing between cards */
     justify-content: center;
+    align-items: center;
 }
-
+.player-1 img {
+    transform: rotate(180deg); /* No rotation for player 1 */
+}
+/* Stacks layout */
 .stacks {
     display: flex;
     justify-content: center;
-    gap: 50px; /* Space between draw and discard stacks */
+    align-items: center;
+    gap: 15px; /* Space between draw and discard stacks */
 }
 
+/* Card and stack images */
 .card-slot img, .stacks img {
-    width: 100px; /* Set card width */
+    width: 80px; /* Adjust card size to fit on the page */
     height: auto; /* Maintain aspect ratio */
     border: 1px solid black;
     border-radius: 5px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
-/* Add responsive design for smaller screens */
+/* Responsive design for smaller screens */
 @media (max-width: 768px) {
     .game-board {
-        grid-template-rows: auto auto auto; /* Keep the three rows */
-        grid-gap: 10px; /* Reduce spacing between rows */
+        grid-gap: 8px; /* Reduce spacing between rows */
     }
 
     .player {
-        display: grid; /* Ensure the player container uses grid layout */
-        grid-template-columns: repeat(2, 1fr); /* Maintain a 2x2 grid for cards */
-        grid-gap: 10px; /* Adjust spacing between cards */
-        justify-content: center;
+        grid-template-columns: repeat(2, 1fr); /* Maintain 2x2 grid */
+        grid-gap: 6px; /* Reduce spacing between cards */
     }
 
     .stacks {
-        display: flex; /* Ensure stacks remain side by side */
-        flex-direction: row; /* Keep draw and discard stacks side by side */
-        gap: 20px; /* Reduce spacing between stacks */
+        gap: 10px; /* Reduce spacing between stacks */
     }
 
     .card-slot img, .stacks img {
-        width: 80px; /* Reduce card size for smaller screens */
+        width: 70px; /* Smaller card size for smaller screens */
     }
 }
 
 @media (max-width: 480px) {
     .game-board {
-        grid-gap: 5px; /* Further reduce spacing for very small screens */
+        grid-gap: 5px; /* Further reduce spacing between rows */
     }
 
     .player {
-        display: grid; /* Ensure the player container uses grid layout */
-        grid-template-columns: repeat(2, 1fr); /* Maintain a 2x2 grid for cards */
+        grid-template-columns: repeat(2, 1fr); /* Maintain 2x2 grid */
         grid-gap: 5px; /* Further reduce spacing between cards */
-        justify-content: center;
     }
 
     .stacks {
-        display: flex; /* Ensure stacks remain side by side */
-        flex-direction: row; /* Keep draw and discard stacks side by side */
-        gap: 10px; /* Further reduce spacing between stacks */
+        gap: 8px; /* Further reduce spacing between stacks */
     }
 
     .card-slot img, .stacks img {

@@ -138,6 +138,36 @@ async function addFirstCardToDiscardStack() {
     }
 }
 
+// Function to set up player cards
+async function setUpPlayerCards() {
+    try {
+        // Select all player card elements
+        const playerCards = document.querySelectorAll('.player .card-slot img');
+
+        // Loop through each player card
+        for (const card of playerCards) {
+            // Get a card from the card stack
+            const newCard = await takeFromCardStack();
+
+            // If no card is available, stop the loop
+            if (newCard === null) {
+                console.log('No more cards available in the card stack.');
+                break;
+            }
+
+            // Update the data-card attribute with the new card value
+            card.setAttribute('data-card', newCard);
+
+            // Update the card image to show the new card
+            card.src = `karten/${newCard}.png`;
+
+            console.log(`Assigned card ${newCard} to a player card slot.`);
+        }
+    } catch (error) {
+        console.error('Error setting up player cards:', error);
+    }
+}
+
 // Function to clear the discard stack in Firestore
 async function clearDiscardStack() {
     const discardStackRef = doc(db, 'gameData', 'discardStack'); // Reference to the discard stack document
@@ -213,11 +243,46 @@ function setupCardEventListeners() {
     });
 }
 
+// Function to rotate the page for the other player
+function rotatePageForPlayer(playerRole) {
+    const pageContainer = document.getElementById("page-container");
+
+    if (!pageContainer) {
+        console.error("Error: #page-container element not found.");
+        return;
+    }
+
+    // Ensure transition is set (can be done here or in CSS)
+    // If transition is not in CSS #page-container rule, uncomment the next line:
+    // pageContainer.style.transition = 'transform 0.5s ease'; 
+
+    if (playerRole === 'player-2') {
+        // Apply rotation directly via inline style
+        pageContainer.style.transform = 'rotate(180deg)'; 
+        console.log('Applied inline transform: rotate(180deg)');
+        // You can optionally still add the class for other potential styling or state tracking
+        pageContainer.classList.add('rotated'); 
+    } else if (playerRole === 'player-1') {
+        // Remove rotation directly via inline style
+        pageContainer.style.transform = 'rotate(0deg)'; // Or 'none'
+        console.log('Applied inline transform: rotate(0deg)');
+        // You can optionally still remove the class
+        pageContainer.classList.remove('rotated'); 
+    } else {
+        console.warn("Invalid player role provided:", playerRole);
+    }
+}
+
 // Call the setup function on page load
 document.addEventListener('DOMContentLoaded', async () => {
+    const pageContainer = document.getElementById("page-container");
+    if (pageContainer) {
+        // Ensure initial transform is none/0deg if needed
+        pageContainer.style.transform = 'rotate(0deg)'; 
+        pageContainer.classList.remove('rotated'); // Also remove class just in case
+    }
     setupCardEventListeners();
     await updateDiscardStackDisplay(); // Update discard stack display on page load
-    
 });
 
 // Attach functions to the global window object
@@ -228,7 +293,8 @@ window.takeFromCardStack = takeFromCardStack;
 window.addFirstCardToDiscardStack = addFirstCardToDiscardStack;
 window.clearDiscardStack = clearDiscardStack;
 window.updateDiscardStackDisplay = updateDiscardStackDisplay;
-
+window.setUpPlayerCards = setUpPlayerCards;
+window.rotatePageForPlayer = rotatePageForPlayer;
 
 
 

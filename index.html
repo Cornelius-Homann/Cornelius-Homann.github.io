@@ -9,6 +9,11 @@
     <title>Card Game Layout</title>
 </head>
 <body>
+    <div id ="page-container">
+    <div class="test-buttons">
+        <button onclick="rotatePageForPlayer('player-1')">Test as Player One</button>
+        <button onclick="rotatePageForPlayer('player-2')">Test as Player Two</button>
+    </div>
     <button onclick="uploadRandomizedCardStack()">Upload Randomized Card Stack</button>
     <button onclick="addFirstCardToDiscardStack()">Add First Card to Discard Stack</button>
     <button onclick="clearDiscardStack()">Clear Discard Stack</button>
@@ -17,7 +22,7 @@
         <!-- Player 1's cards -->
         <div class="player player-1">
             <div class="card-slot" id="player1-card1">
-                <img src="karten/1.png" alt="Player 1 Card 1" data-card="1">
+                <img src="karten/1.png?v=1" alt="Player 1 Card 1" data-card="1">
             </div>
             <div class="card-slot" id="player1-card2">
                 <img src="karten/2.png" alt="Player 1 Card 2" data-card="2">
@@ -55,6 +60,7 @@
                 <img src="karten/8.png" alt="Player 2 Card 4" data-card="8">
             </div>
         </div>
+    </div>
     </div>
 </body>
 </html>
