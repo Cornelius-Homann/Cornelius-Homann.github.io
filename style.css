@@ -1,109 +1,194 @@
+* {
+    box-sizing: border-box;
+}
+
 /* General styles for html and body */
 html, body {
     margin: 0;
     padding: 0;
     width: 100%;
     height: 100%;
-    overflow: hidden; /* Prevent scrollbars during rotation */
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    background-image: url('table.png'); /* Set table.png as the background */
+    overflow: hidden; /* Prevent scrollbars */
+    background-image: url('table.png');
     background-size: cover;
-    background-repeat: no-repeat; /* Prevent tiling */
+    background-repeat: no-repeat;
     background-position: center;
 }
 
 /* Page container styles */
 #page-container {
+    width: 95vw;
+    height: 95vh;
+    max-width: 1200px;
+    max-height: 800px;
+    margin: auto;
+    position: relative;
+    transform-origin: center;
+    transition: transform 0.5s ease;
+    will-change: transform;
+    overflow: hidden;
     display: flex;
-    flex-direction: column; /* Stack content vertically */
     justify-content: center;
     align-items: center;
-    width: 100%; /* Full width */
-    height: 100%; /* Full height */
-    position: relative; /* Allow transform to work properly */
-    transform-origin: center; /* Set the rotation origin to the center */
-    transition: transform 0.5s ease; /* Smooth rotation */
-    will-change: transform; /* Optimize for transform changes */
-    overflow: hidden; /* Prevent content overflow during rotation */
 }
 
 /* Game board layout */
 .game-board {
     display: grid;
-    grid-template-rows: auto auto auto; /* Three rows: Player 1, stacks, Player 2 */
-    grid-gap: 10px; /* Reduce spacing between rows */
-    justify-items: center; /* Center items horizontally */
-    align-items: center; /* Center items vertically */
-    width: 90%; /* Slightly smaller width to fit on the page */
-    height: 90%; /* Slightly smaller height to fit on the page */
+    grid-template-rows: auto auto auto; /* Player 1, Stacks, Player 2 */
+    grid-gap: 5px; /* Compact vertical gap */
+    justify-items: center;
+    align-items: center;
+    width: 100%;
+    height: 100%;
     text-align: center;
+    padding: 5px; /* Compact padding */
 }
 
 /* Player layout */
 .player {
     display: grid;
-    grid-template-columns: repeat(2, 1fr); /* 2x2 grid for cards */
-    grid-gap: 8px; /* Reduce spacing between cards */
-    justify-content: center;
+    grid-template-columns: repeat(2, 1fr);
+    grid-gap: 5px;
+    justify-items: center;
     align-items: center;
+    
 }
+
+/* --- ADD ROTATION FOR PLAYER 1 CARDS --- */
+/* Rotate Player 1's cards by default */
 .player-1 img {
-    transform: rotate(180deg); /* No rotation for player 1 */
+    transform: rotate(180deg);
 }
-/* Stacks layout */
-.stacks {
+
+/* --- REMOVE ROTATION FOR PLAYER 2 CARDS --- */
+/* Ensure Player 2's cards have NO default rotation */
+/* Remove or comment out any existing .player-2 img { transform: rotate(...) } rule */
+/*
+.player-2 img {
+    transform: rotate(180deg); // REMOVE THIS
+}
+*/
+
+
+/* Card slot and image sizing */
+.card-slot {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 15px; /* Space between draw and discard stacks */
 }
 
-/* Card and stack images */
 .card-slot img, .stacks img {
-    width: 80px; /* Adjust card size to fit on the page */
-    height: auto; /* Maintain aspect ratio */
-    border: 1px solid black;
+    max-width: 100px; /* Adjust max size as needed */
+    max-height: 140px;
+    width: 100%;
+    height: auto;
+    object-fit: contain;
+    border: 1px solid #ccc;
     border-radius: 5px;
-    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
 }
 
-/* Responsive design for smaller screens */
-@media (max-width: 768px) {
-    .game-board {
-        grid-gap: 8px; /* Reduce spacing between rows */
-    }
 
-    .player {
-        grid-template-columns: repeat(2, 1fr); /* Maintain 2x2 grid */
-        grid-gap: 6px; /* Reduce spacing between cards */
-    }
-
-    .stacks {
-        gap: 10px; /* Reduce spacing between stacks */
-    }
-
-    .card-slot img, .stacks img {
-        width: 70px; /* Smaller card size for smaller screens */
-    }
+/* Stacks layout */
+.stacks {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px; /* Compact gap between stacks/buttons */
+    margin: 2px 0; /* Compact vertical margin */
+    width: 100%;
 }
 
-@media (max-width: 480px) {
-    .game-board {
-        grid-gap: 5px; /* Further reduce spacing between rows */
-    }
+/* Stack image sizing */
+.stacks img {
+    max-width: 80px; /* Smaller size for stack images */
+    max-height: 112px;
+}
 
-    .player {
-        grid-template-columns: repeat(2, 1fr); /* Maintain 2x2 grid */
-        grid-gap: 5px; /* Further reduce spacing between cards */
-    }
 
-    .stacks {
-        gap: 8px; /* Further reduce spacing between stacks */
-    }
+/* --- RE-APPLY BUTTON STYLES --- */
+/* Base style for game action buttons (inspired by landing page) */
+.game-action-button {
+    padding: 8px 12px;
+    font-size: 1rem;
+    font-weight: bold;
+    color: #f9f871; /* Yellow text */
+    background-color: #8b0000; /* Dark red background */
+    border: 3px solid #f9f871; /* Yellow border */
+    border-radius: 8px; /* Slightly rounded corners */
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.2s ease;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Text shadow */
+    flex-shrink: 0; /* Prevent shrinking */
+    transform: rotate(0deg); /* Base rotation state */
+}
 
-    .card-slot img, .stacks img {
-        width: 60px; /* Further reduce card size */
-    }
+/* Specific style for the round CABO button */
+.cabo-button {
+    width: 70px; /* Fixed width */
+    height: 70px; /* Fixed height */
+    border-radius: 50%; /* Make it round */
+    padding: 0; /* Remove padding to center text */
+    font-size: 1.3rem; /* Larger text for CABO */
+    display: flex; /* Use flexbox to center text */
+    justify-content: center;
+    align-items: center;
+    line-height: 1; /* Adjust line height */
+}
+
+
+
+/* Counter-rotate the action buttons (This uses the .rotated class correctly) */
+#page-container.rotated .game-action-button {
+  transform: rotate(180deg);
+}
+
+/* Hover rules (These should still work correctly with the .rotated class) */
+.game-action-button:hover {
+    background-color: #db7d3d; /* Orange on hover */
+    transform: scale(1.05);
+}
+#page-container.rotated .game-action-button:hover {
+    background-color: #db7d3d; /* Orange on hover */
+    transform: rotate(180deg) scale(1.05);
+}
+
+/* Responsive design - Keeping compactness adjustments */
+@media (max-height: 600px), (max-width: 700px) {
+    .card-slot img, .stacks img { max-width: 70px; max-height: 98px; }
+    .stacks img { max-width: 60px; max-height: 84px; }
+    .game-action-button { padding: 6px 10px; font-size: 0.9rem; border-width: 2px; }
+    .cabo-button { width: 60px; height: 60px; font-size: 1.1rem; }
+    .stacks { gap: 8px; }
+    .game-board { grid-gap: 3px; }
+    .player { grid-gap: 3px; }
+}
+
+@media (max-height: 450px), (max-width: 480px) {
+     .card-slot img, .stacks img { max-width: 55px; max-height: 77px; }
+    .stacks img { max-width: 50px; max-height: 70px; }
+     .game-action-button { padding: 5px 8px; font-size: 0.8rem; border-width: 2px; }
+    .cabo-button { width: 50px; height: 50px; font-size: 1rem; }
+     .stacks { gap: 5px; }
+     .player { grid-gap: 2px; }
+     .game-board { grid-gap: 2px; padding: 2px; }
+}
+
+/* --- Test Buttons Styling (Optional - Hide if not needed) --- */
+.test-buttons {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 10;
+    background: rgba(0,0,0,0.5);
+    padding: 5px;
+    border-radius: 5px;
+    display: flex;
+    gap: 5px;
+    /* Uncomment to hide: */
+    /* display: none; */
+}
+.test-buttons button {
+    padding: 3px 6px;
+    font-size: 0.8rem;
 }

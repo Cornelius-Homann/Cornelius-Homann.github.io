@@ -73,7 +73,6 @@ async function initializeGameRoom(roomCode) {
                 player1Hand: player1Hand,
                 player2Hand: player2Hand,
                 gameState: "player1Turn", // Example initial state
-                createdAt: Timestamp.now()
             };
 
             await setDoc(roomRef, initialRoomData);
@@ -348,28 +347,32 @@ function handleCardClick(event) {
 
 
 /**
- * Rotates the game board view based on the player role.
+ * Rotates the game board view so the current player is always at the bottom.
  * @param {string} playerRole - 'player-1' or 'player-2'.
  */
 function rotatePageForPlayer(playerRole) {
     const pageContainer = document.getElementById("page-container");
+
     if (!pageContainer) {
         console.error("Error: #page-container element not found.");
         return;
     }
 
-    // Ensure transition is set via CSS on #page-container
-    // pageContainer.style.transition = 'transform 0.5s ease'; // Only if not in CSS
+    let pageRotation = '0deg';
 
-    if (playerRole === 'player-2') {
-        pageContainer.style.transform = 'rotate(0deg)';
-        pageContainer.classList.add('rotated'); // Optional class for other styles
-        console.log('Rotated view for Player 2.');
-    } else { // Default to Player 1 view (handles null/undefined/player-1)
-        pageContainer.style.transform = 'rotate(180deg)';
+    // --- REVERSE LOGIC: Rotate only for Player 1 ---
+    if (playerRole === 'player-1') { // Rotate page if Player 1 is active
+        pageRotation = '180deg';
+        pageContainer.classList.add('rotated'); // Add class (used for button counter-rotation)
+        console.log('Applying 180deg rotation for Player 1 view.');
+    } else { // Default to Player 2 view (or if role is null) - NO page rotation
+        pageRotation = '0deg';
         pageContainer.classList.remove('rotated');
-        console.log('Set view for Player 1.');
+        console.log('Applying 0deg rotation for Player 2 view (or default).');
     }
+
+    // Apply rotation ONLY to the page container
+    pageContainer.style.transform = `rotate(${pageRotation})`;
 }
 
 // --- Initialization on Page Load ---
@@ -401,7 +404,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Initial Page Setup ---
     const pageContainer = document.getElementById("page-container");
     if (pageContainer) {
-        rotatePageForPlayer(currentPlayerRole);
+        // --- ADD LOGGING HERE ---
+        console.log(`Calling rotatePageForPlayer with role: ${currentPlayerRole}`);
+        rotatePageForPlayer(currentPlayerRole); // Pass the determined role
     } else {
         console.error("Could not find #page-container for initial setup.");
     }
@@ -425,6 +430,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnClearDiscard = document.getElementById('btnClearDiscard');
     const btnTestRotateP1 = document.getElementById('btnTestRotateP1');
     const btnTestRotateP2 = document.getElementById('btnTestRotateP2');
+    // --- Add New Button Elements ---
+    const btnCabo = document.getElementById('btnCabo');
+    const btnResetRoom = document.getElementById('btnResetRoom');
+
 
     if (btnInitRoom) {
         btnInitRoom.addEventListener('click', () => {
@@ -449,8 +458,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             clearDiscardStack(currentRoomCode);
         });
     }
-
-    // --- MODIFIED BUTTON LISTENERS ---
     if (btnTestRotateP1) {
         btnTestRotateP1.addEventListener('click', () => {
             // Construct URL with current room code and player=player-1
@@ -468,7 +475,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    console.log("Game initialization complete.");
+    // --- Add Listeners for New Buttons ---
+    if (btnCabo) {
+        btnCabo.addEventListener('click', () => {
+            // TODO: Implement CABO logic (check game state, compare hands, etc.)
+            console.log(`Player ${currentPlayerRole} called CABO in room ${currentRoomCode}!`);
+            alert("CABO! (Logic not yet implemented)");
+        });
+    }
+
+    if (btnResetRoom) {
+        btnResetRoom.addEventListener('click', async () => {
+            console.log(`Reset Room button clicked for room ${currentRoomCode}.`);
+            if (confirm(`Are you sure you want to reset room ${currentRoomCode}? This will deal new cards.`)) {
+                console.log("Attempting to re-initialize room...");
+                const roomRef = doc(db, 'gameRooms', currentRoomCode);
+                try {
+                    // --- Direct Reset Logic ---
+                    console.log(`Force resetting room ${currentRoomCode} data...`);
+                    let cardStack = [
+                        ...Array(2).fill(0), ...Array(4).fill(1), ...Array(4).fill(2),
+                        ...Array(4).fill(3), ...Array(4).fill(4), ...Array(4).fill(5),
+                        ...Array(4).fill(6), ...Array(4).fill(7), ...Array(4).fill(8),
+                        ...Array(4).fill(9), ...Array(4).fill(10), ...Array(4).fill(11),
+                        ...Array(4).fill(12), ...Array(2).fill(13)
+                    ];
+                    cardStack = cardStack.sort(() => Math.random() - 0.5);
+                    const player1Hand = cardStack.splice(0, 4);
+                    const player2Hand = cardStack.splice(0, 4);
+                    const discardStack = cardStack.splice(0, 1);
+                    const resetRoomData = {
+                        cardStack: cardStack,
+                        discardStack: discardStack,
+                        player1Hand: player1Hand,
+                        player2Hand: player2Hand,
+                        gameState: "player1Turn", // Reset state
+                        createdAt: Timestamp.now() // Update timestamp
+                    };
+                    await setDoc(roomRef, resetRoomData); // Overwrite document
+                    console.log(`Room ${currentRoomCode} has been reset.`); // Cleaned log
+
+                    // Refresh UI elements after reset
+                    await updateDiscardStackDisplay(currentRoomCode); // Cleaned call
+                    if (currentPlayerRole) {
+                        await displayPlayerCards(currentRoomCode, currentPlayerRole); // Cleaned call
+                    }
+                    // Potentially need to re-attach listeners if displayPlayerCards modifies elements significantly
+                    setupCardEventListeners(); // Cleaned call
+
+                } catch (error) {
+                    console.error(`Error resetting room ${currentRoomCode}:`, error); // Cleaned log
+                    alert("Failed to reset the room. See console for details."); // Cleaned alert
+                }
+            }
+        });
+    }
+
+
+    console.log("Game initialization complete."); // Cleaned log
 });
 
 
