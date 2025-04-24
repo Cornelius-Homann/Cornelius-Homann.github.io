@@ -4,63 +4,71 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="style.css">
+    <!-- Load script as module -->
     <script type="module" src="script.js"></script>
     <link rel="icon" href="favicon.ico">
-    <title>Card Game Layout</title>
+    <title>Cabo Game</title>
 </head>
 <body>
-    <div id ="page-container">
-    <div class="test-buttons">
-        <button onclick="rotatePageForPlayer('player-1')">Test as Player One</button>
-        <button onclick="rotatePageForPlayer('player-2')">Test as Player Two</button>
-    </div>
-    <button onclick="uploadRandomizedCardStack()">Upload Randomized Card Stack</button>
-    <button onclick="addFirstCardToDiscardStack()">Add First Card to Discard Stack</button>
-    <button onclick="clearDiscardStack()">Clear Discard Stack</button>
-    
-    <div class="game-board">
-        <!-- Player 1's cards -->
-        <div class="player player-1">
-            <div class="card-slot" id="player1-card1">
-                <img src="karten/1.png?v=1" alt="Player 1 Card 1" data-card="1">
-            </div>
-            <div class="card-slot" id="player1-card2">
-                <img src="karten/2.png" alt="Player 1 Card 2" data-card="2">
-            </div>
-            <div class="card-slot" id="player1-card3">
-                <img src="karten/3.png" alt="Player 1 Card 3" data-card="3">
-            </div>
-            <div class="card-slot" id="player1-card4">
-                <img src="karten/4.png" alt="Player 1 Card 4" data-card="4">
-            </div>
+    <!-- Container for rotation -->
+    <div id="page-container">
+
+        <!-- Test Buttons (Removed onclick, added IDs) -->
+        <div class="test-buttons">
+            <button id="btnTestRotateP1">Test as Player One</button>
+            <button id="btnTestRotateP2">Test as Player Two</button>
+            <button id="btnInitRoom">Initialize Room</button> <!-- Changed text/ID -->
+            <button id="btnAddDiscard">Add Card to Discard</button> <!-- Changed text -->
+            <button id="btnClearDiscard">Clear Discard</button>
         </div>
 
-        <!-- Draw and discard stacks -->
-        <div class="stacks">
-            <div class="draw-stack" id="draw-stack">
-                <img src="karten/back.png" alt="Draw Stack" data-card="">
+        <!-- Game Board -->
+        <div class="game-board">
+            <!-- Player 1's cards -->
+            <div class="player player-1">
+                <div class="card-slot" id="player1-card1">
+                    <!-- Initial state can be back or empty, will be set by JS -->
+                    <img src="karten/back.png" alt="Player 1 Card 1" data-card="">
+                </div>
+                <div class="card-slot" id="player1-card2">
+                    <img src="karten/back.png" alt="Player 1 Card 2" data-card="">
+                </div>
+                <div class="card-slot" id="player1-card3">
+                    <img src="karten/back.png" alt="Player 1 Card 3" data-card="">
+                </div>
+                <div class="card-slot" id="player1-card4">
+                    <img src="karten/back.png" alt="Player 1 Card 4" data-card="">
+                </div>
             </div>
-            <div class="discard-stack" id="discard-stack">
-                <img src="karten/empty.png" alt="Discard Stack" data-card="empty">
-            </div>
-        </div>
 
-        <!-- Player 2's cards -->
-        <div class="player player-2">
-            <div class="card-slot" id="player2-card1">
-                <img src="karten/5.png" alt="Player 2 Card 1" data-card="5">
+            <!-- Draw and discard stacks -->
+            <div class="stacks">
+                <div class="draw-stack" id="draw-stack">
+                    <!-- Draw stack always shows back -->
+                    <img src="karten/back.png" alt="Draw Stack" data-card="">
+                </div>
+                <div class="discard-stack" id="discard-stack">
+                    <!-- Initial state empty, will be set by JS -->
+                    <img src="karten/empty.png" alt="Discard Stack" data-card="empty">
+                </div>
             </div>
-            <div class="card-slot" id="player2-card2">
-                <img src="karten/6.png" alt="Player 2 Card 2" data-card="6">
+
+            <!-- Player 2's cards -->
+            <div class="player player-2">
+                <div class="card-slot" id="player2-card1">
+                    <img src="karten/back.png" alt="Player 2 Card 1" data-card="">
+                </div>
+                <div class="card-slot" id="player2-card2">
+                    <img src="karten/back.png" alt="Player 2 Card 2" data-card="">
+                </div>
+                <div class="card-slot" id="player2-card3">
+                    <img src="karten/back.png" alt="Player 2 Card 3" data-card="">
+                </div>
+                <div class="card-slot" id="player2-card4">
+                    <img src="karten/back.png" alt="Player 2 Card 4" data-card="">
+                </div>
             </div>
-            <div class="card-slot" id="player2-card3">
-                <img src="karten/7.png" alt="Player 2 Card 3" data-card="7">
-            </div>
-            <div class="card-slot" id="player2-card4">
-                <img src="karten/8.png" alt="Player 2 Card 4" data-card="8">
-            </div>
-        </div>
-    </div>
-    </div>
+        </div> <!-- End game-board -->
+    </div> <!-- End page-container -->
 </body>
 </html>
