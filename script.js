@@ -1,6 +1,6 @@
 // Import Firebase modules
 import { initializeApp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, Timestamp } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/9.6.1/firebase-firestore.js";
 
 // Firebase configuration (Keep your actual config here)
 const firebaseConfig = {
@@ -40,52 +40,60 @@ async function initializeGameRoom(roomCode) {
     try {
         const roomSnap = await getDoc(roomRef);
 
-        if (!roomSnap.exists()) {
-            console.log(`Room ${roomCode} does not exist. Creating...`);
+        // Determine if the room needs to be created or reset
+        const isNewRoom = !roomSnap.exists();
+        console.log(`Room ${roomCode} ${isNewRoom ? "does not exist. Creating..." : "already exists. Resetting room..."}`);
 
-            // Create the initial card stack
-            let cardStack = [
-                ...Array(2).fill(0), ...Array(4).fill(1), ...Array(4).fill(2),
-                ...Array(4).fill(3), ...Array(4).fill(4), ...Array(4).fill(5),
-                ...Array(4).fill(6), ...Array(4).fill(7), ...Array(4).fill(8),
-                ...Array(4).fill(9), ...Array(4).fill(10), ...Array(4).fill(11),
-                ...Array(4).fill(12), ...Array(2).fill(13)
-            ];
-
-            // Shuffle the card stack
-            cardStack = cardStack.sort(() => Math.random() - 0.5);
-            console.log(`Room ${roomCode}: Initial shuffled stack (full):`, [...cardStack]); // Log copy
-
-            // Deal initial hands (4 cards each)
-            const player1Hand = cardStack.splice(0, 4);
-            const player2Hand = cardStack.splice(0, 4);
-            const discardStack = cardStack.splice(0, 1); // Deal one card to discard
-
-            console.log(`Room ${roomCode}: Player 1 Hand:`, player1Hand);
-            console.log(`Room ${roomCode}: Player 2 Hand:`, player2Hand);
-            console.log(`Room ${roomCode}: Initial Discard:`, discardStack);
-            console.log(`Room ${roomCode}: Remaining Deck:`, cardStack);
-
-
-            const initialRoomData = {
-                cardStack: cardStack,
-                discardStack: discardStack,
-                player1Hand: player1Hand,
-                player2Hand: player2Hand,
-                gameState: "player1Turn", // Example initial state
-            };
-
-            await setDoc(roomRef, initialRoomData);
-            console.log(`Room ${roomCode} created successfully with initial data.`);
-            return true; // Indicate creation
-        } else {
-            console.log(`Room ${roomCode} already exists.`);
-            return false; // Indicate existence
-        }
+        // Create or reset the room data
+        const roomData = generateRoomData();
+        await setDoc(roomRef, roomData);
+        console.log(`Room ${roomCode} ${isNewRoom ? "created" : "reset"} successfully.`);
+        return isNewRoom; // Return true if the room was newly created, false otherwise
     } catch (error) {
         console.error(`Error initializing room ${roomCode}:`, error);
         return false;
     }
+}
+
+/**
+ * Generates the initial or reset data for a game room.
+ * @returns {Object} The room data object.
+ */
+function generateRoomData() {
+    // Create the initial card stack
+    let cardStack = [
+        ...Array(2).fill(0), ...Array(4).fill(1), ...Array(4).fill(2),
+        ...Array(4).fill(3), ...Array(4).fill(4), ...Array(4).fill(5),
+        ...Array(4).fill(6), ...Array(4).fill(7), ...Array(4).fill(8),
+        ...Array(4).fill(9), ...Array(4).fill(10), ...Array(4).fill(11),
+        ...Array(4).fill(12), ...Array(2).fill(13)
+    ];
+
+    // Shuffle the card stack
+    cardStack = cardStack.sort(() => Math.random() - 0.5);
+
+    // Deal initial hands (4 cards each)
+    const player1Hand = cardStack.splice(0, 4);
+    const player2Hand = cardStack.splice(0, 4);
+    const discardStack = cardStack.splice(0, 1); // Deal one card to discard
+
+    console.log("Generated Room Data:");
+    console.log("Player 1 Hand:", player1Hand);
+    console.log("Player 2 Hand:", player2Hand);
+    console.log("Initial Discard:", discardStack);
+    console.log("Remaining Deck:", cardStack);
+
+    return {
+        cardStack: cardStack,
+        discardStack: discardStack,
+        player1Hand: player1Hand,
+        player2Hand: player2Hand,
+        gameState: "startphase", // Start with the start phase
+        caboPressed: {
+            player1: false,
+            player2: false
+        }
+    };
 }
 
 /**
@@ -264,6 +272,7 @@ async function displayPlayerCards(roomCode, playerRole) {
         console.error("displayPlayerCards: roomCode and playerRole are required.");
         return;
     }
+
     const roomRef = doc(db, 'gameRooms', roomCode);
 
     try {
@@ -272,8 +281,8 @@ async function displayPlayerCards(roomCode, playerRole) {
             console.error(`Room ${roomCode}: Cannot display cards, room not found.`);
             return;
         }
+
         const roomData = roomSnap.data();
-        // Determine which hand to display based on playerRole
         const playerHandData = (playerRole === 'player-1') ? roomData.player1Hand : roomData.player2Hand;
 
         if (!playerHandData || playerHandData.length !== 4) {
@@ -281,23 +290,21 @@ async function displayPlayerCards(roomCode, playerRole) {
             return;
         }
 
-        // Select the correct player's card slots in the DOM
+        // Select the card slots for the current player
         const playerCardSlots = document.querySelectorAll(`.player.${playerRole} .card-slot img`);
 
         if (playerCardSlots.length !== 4) {
-             console.error(`Room ${roomCode}: Found ${playerCardSlots.length} card slots for ${playerRole}, expected 4.`);
-             return;
+            console.error(`Room ${roomCode}: Found ${playerCardSlots.length} card slots for ${playerRole}, expected 4.`);
+            return;
         }
 
-        // Update the DOM elements with the hand data
+        // Initialize all cards as back.png
         playerCardSlots.forEach((imgElement, index) => {
-            const cardValue = playerHandData[index];
-            // Display card face initially (or back.png if you prefer)
-            imgElement.src = `karten/${cardValue}.png`;
-            imgElement.setAttribute('data-card', cardValue);
-            console.log(`Room ${roomCode}: Displayed card ${cardValue} for ${playerRole} slot ${index + 1}`);
+            imgElement.src = "karten/back.png"; // Set to back of the card
+            imgElement.setAttribute("data-card", playerHandData[index]); // Store the card value for flipping
         });
 
+        console.log(`Room ${roomCode}: Initialized cards for ${playerRole}.`);
     } catch (error) {
         console.error(`Room ${roomCode}: Error displaying cards for ${playerRole}:`, error);
     }
@@ -360,22 +367,152 @@ function rotatePageForPlayer(playerRole) {
 
     let pageRotation = '0deg';
 
-    // --- REVERSE LOGIC: Rotate only for Player 1 ---
-    if (playerRole === 'player-1') { // Rotate page if Player 1 is active
+    // Rotate the board for Player 1
+    if (playerRole === 'player-1') {
         pageRotation = '180deg';
-        pageContainer.classList.add('rotated'); // Add class (used for button counter-rotation)
         console.log('Applying 180deg rotation for Player 1 view.');
-    } else { // Default to Player 2 view (or if role is null) - NO page rotation
+    } else if (playerRole === 'player-2') {
         pageRotation = '0deg';
-        pageContainer.classList.remove('rotated');
-        console.log('Applying 0deg rotation for Player 2 view (or default).');
+        console.log('Applying 0deg rotation for Player 2 view.');
+    } else {
+        console.warn(`Unknown player role: ${playerRole}. No rotation applied.`);
     }
 
-    // Apply rotation ONLY to the page container
+    // Apply rotation to the page container
     pageContainer.style.transform = `rotate(${pageRotation})`;
+    pageContainer.style.transition = 'transform 0.5s ease'; // Add smooth transition
+
+    // Rotate buttons and other UI elements back to normal
+    const buttons = document.querySelectorAll('.game-action-button');
+    buttons.forEach((button) => {
+        button.style.transform = `rotate(-${pageRotation})`;
+    });
 }
 
-// --- Initialization on Page Load ---
+/**
+ * Sets the gameState variable for the current room in Firestore.
+ * @param {string} newGameState - The new game state to set (e.g., "player1Turn", "player2Turn", "caboCalled").
+ * @returns {Promise<void>}
+ */
+async function setGameState(newGameState) {
+    if (!currentRoomCode || !newGameState) {
+        console.error("setGameState: currentRoomCode and newGameState are required.");
+        return;
+    }
+
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    try {
+        const roomSnap = await getDoc(roomRef);
+
+        if (!roomSnap.exists()) {
+            console.error(`Room ${currentRoomCode} does not exist. Cannot set gameState.`);
+            alert(`Room ${currentRoomCode} does not exist. Please initialize the room first.`);
+            return;
+        }
+
+        await updateDoc(roomRef, { gameState: newGameState });
+        console.log(`Room ${currentRoomCode}: gameState updated to "${newGameState}".`);
+    } catch (error) {
+        console.error(`Error setting gameState for room ${currentRoomCode}:`, error);
+    }
+}
+
+/**
+ * Listens for changes to the gameState variable in Firestore and triggers functions based on its value.
+ * @param {string} roomCode - The unique identifier for the game room.
+ */
+function listenToGameState(roomCode) {
+    const roomRef = doc(db, 'gameRooms', roomCode);
+
+    onSnapshot(roomRef, (docSnap) => {
+        if (!docSnap.exists()) {
+            console.error(`Room ${roomCode} does not exist. Cannot listen to gameState.`);
+            return;
+        }
+
+        const roomData = docSnap.data();
+        const gameState = roomData.gameState;
+
+        console.log(`Room ${roomCode}: gameState changed to "${gameState}".`);
+
+        // Call specific functions based on the gameState value
+        switch (gameState) {
+            case "startphase":
+                console.log("Calling handleStartPhase...");
+                handleStartPhase();
+                break;
+            case "player1Turn":
+                handlePlayer1Turn();
+                break;
+            case "player2Turn":
+                handlePlayer2Turn();
+                break;
+            case "caboCalled":
+                handleCaboCalled();
+                break;
+            case "scoring":
+                handleScoringPhase();
+                break;
+            default:
+                console.warn(`Unknown gameState: "${gameState}"`);
+        }
+    });
+}
+
+async function handleStartPhase() {
+    console.log("Start phase initiated.");
+
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+    const roomSnap = await getDoc(roomRef);
+
+    if (!roomSnap.exists()) {
+        console.error(`Room ${currentRoomCode} does not exist. Cannot start phase.`);
+        return;
+    }
+
+    const roomData = roomSnap.data();
+    console.log("Room Data:", roomData);
+
+    // Check if the phase is already completed
+    if (roomData.gameState !== "startphase") {
+        console.warn(`Room ${currentRoomCode}: Not in start phase. Current phase: ${roomData.gameState}`);
+        return;
+    }
+
+    // Reveal the two bottom cards for the current player
+    const playerHandKey = currentPlayerRole === "player-1" ? "player1Hand" : "player2Hand";
+    const hand = roomData[playerHandKey];
+    console.log(`Hand for ${currentPlayerRole}:`, hand);
+
+    if (!hand || hand.length < 4) {
+        console.error(`Room ${currentRoomCode}: Invalid or incomplete hand data for ${currentPlayerRole}.`, hand);
+        return;
+    }
+
+    // Select the specific card slots for the current player
+    const cardSlot3 = document.querySelector(`#${currentPlayerRole}-card3 img`);
+    const cardSlot4 = document.querySelector(`#${currentPlayerRole}-card4 img`);
+    console.log("Card Slot 3:", cardSlot3);
+    console.log("Card Slot 4:", cardSlot4);
+
+    if (cardSlot3 && cardSlot4) {
+        // Reveal the last two cards (bottom cards)
+        cardSlot3.src = `karten/${hand[2]}.png`; // Show third card face
+        cardSlot4.src = `karten/${hand[3]}.png`; // Show fourth card face
+        console.log(`Revealed bottom cards for ${currentPlayerRole}: ${hand[2]}, ${hand[3]}`);
+    } else {
+        console.error(`Card slots for ${currentPlayerRole} not found.`);
+    }
+}
+
+// Map currentPlayerRole to Firestore keys
+function mapPlayerRoleToFirestoreKey(playerRole) {
+    if (playerRole === "player-1") return "player1";
+    if (playerRole === "player-2") return "player2";
+    console.error(`Invalid player role: ${playerRole}`);
+    return null;
+}
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("DOM Loaded. Initializing game...");
@@ -390,149 +527,63 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (roomCodeParam && roomCodeParam.trim() !== '') {
         currentRoomCode = roomCodeParam.trim();
     } else {
-        // If no room code in URL, use default AND update URL for consistency? No, just use default for now.
         console.warn("Room code parameter ('room') missing or empty in URL. Using default room '1'.");
         currentRoomCode = '1';
     }
     console.log(`Using Room Code: ${currentRoomCode}`);
     console.log(`Detected Player Role: ${currentPlayerRole || 'N/A'}`);
 
-
     // --- Initialize Game Room ---
-    await initializeGameRoom(currentRoomCode);
-
-    // --- Initial Page Setup ---
-    const pageContainer = document.getElementById("page-container");
-    if (pageContainer) {
-        // --- ADD LOGGING HERE ---
-        console.log(`Calling rotatePageForPlayer with role: ${currentPlayerRole}`);
-        rotatePageForPlayer(currentPlayerRole); // Pass the determined role
+    if (currentPlayerRole === 'player-1') {
+        console.log("Player 1 joined. Initializing or resetting the room...");
+        document.getElementById('page-container').style.transform = 'rotate(180deg)'; // Rotate for Player 1
+        document.getElementById('stacks').style.transform = 'rotate(180deg)'; // Rotate stacks for Player 1
+        await initializeGameRoom(currentRoomCode);
     } else {
-        console.error("Could not find #page-container for initial setup.");
+        console.log("Player 2 joined. Room will not be reinitialized.");
     }
 
-    // --- Display Initial Game State ---
-    await updateDiscardStackDisplay(currentRoomCode);
-    if (currentPlayerRole) {
-        await displayPlayerCards(currentRoomCode, currentPlayerRole);
-        // TODO: Display opponent's cards as backs
-    } else {
-        console.warn("Cannot display player cards - player role unknown.");
-    }
-
-
-    // --- Setup Event Listeners ---
-    setupCardEventListeners();
-
-    // --- Setup Test Button Listeners ---
-    const btnInitRoom = document.getElementById('btnInitRoom');
-    const btnAddDiscard = document.getElementById('btnAddDiscard');
-    const btnClearDiscard = document.getElementById('btnClearDiscard');
-    const btnTestRotateP1 = document.getElementById('btnTestRotateP1');
-    const btnTestRotateP2 = document.getElementById('btnTestRotateP2');
-    // --- Add New Button Elements ---
+    // --- Attach Event Listeners ---
     const btnCabo = document.getElementById('btnCabo');
-    const btnResetRoom = document.getElementById('btnResetRoom');
-
-
-    if (btnInitRoom) {
-        btnInitRoom.addEventListener('click', () => {
-            console.log("Initialize Room button clicked - re-initializing room (will only create if missing).");
-            initializeGameRoom(currentRoomCode);
-        });
-    }
-     if (btnAddDiscard) {
-        btnAddDiscard.addEventListener('click', async () => {
-             console.log("Add First Card to Discard button clicked.");
-             const card = await takeFromCardStack(currentRoomCode);
-             if (card !== null) {
-                 await addToDiscardStack(currentRoomCode, card);
-             } else {
-                 console.log("No card taken from stack to add.");
-             }
-        });
-    }
-     if (btnClearDiscard) {
-        btnClearDiscard.addEventListener('click', () => {
-            console.log("Clear Discard button clicked.");
-            clearDiscardStack(currentRoomCode);
-        });
-    }
-    if (btnTestRotateP1) {
-        btnTestRotateP1.addEventListener('click', () => {
-            // Construct URL with current room code and player=player-1
-            const targetUrl = `index.html?player=player-1&room=${encodeURIComponent(currentRoomCode)}`;
-            console.log(`Navigating to: ${targetUrl}`);
-            window.location.href = targetUrl; // Navigate to the URL
-        });
-    }
-    if (btnTestRotateP2) {
-        btnTestRotateP2.addEventListener('click', () => {
-            // Construct URL with current room code and player=player-2
-            const targetUrl = `index.html?player=player-2&room=${encodeURIComponent(currentRoomCode)}`;
-            console.log(`Navigating to: ${targetUrl}`);
-            window.location.href = targetUrl; // Navigate to the URL
-        });
-    }
-
-    // --- Add Listeners for New Buttons ---
     if (btnCabo) {
-        btnCabo.addEventListener('click', () => {
-            // TODO: Implement CABO logic (check game state, compare hands, etc.)
-            console.log(`Player ${currentPlayerRole} called CABO in room ${currentRoomCode}!`);
-            alert("CABO! (Logic not yet implemented)");
+        btnCabo.disabled = false; // Ensure the button is enabled
+        btnCabo.addEventListener('click', async () => {
+            console.log('CABO button clicked');
+            try {
+                const firestoreKey = mapPlayerRoleToFirestoreKey(currentPlayerRole);
+                if (!firestoreKey) return;
+
+                const roomRef = doc(db, 'gameRooms', currentRoomCode);
+                await updateDoc(roomRef, {
+                    [`caboPressed.${firestoreKey}`]: true
+                });
+                console.log(`${currentPlayerRole} pressed CABO`);
+            } catch (error) {
+                console.error('Error updating CABO state:', error);
+            }
         });
+    } else {
+        console.error('CABO button not found');
     }
 
+    const btnResetRoom = document.getElementById('btnResetRoom');
     if (btnResetRoom) {
         btnResetRoom.addEventListener('click', async () => {
-            console.log(`Reset Room button clicked for room ${currentRoomCode}.`);
-            if (confirm(`Are you sure you want to reset room ${currentRoomCode}? This will deal new cards.`)) {
-                console.log("Attempting to re-initialize room...");
-                const roomRef = doc(db, 'gameRooms', currentRoomCode);
-                try {
-                    // --- Direct Reset Logic ---
-                    console.log(`Force resetting room ${currentRoomCode} data...`);
-                    let cardStack = [
-                        ...Array(2).fill(0), ...Array(4).fill(1), ...Array(4).fill(2),
-                        ...Array(4).fill(3), ...Array(4).fill(4), ...Array(4).fill(5),
-                        ...Array(4).fill(6), ...Array(4).fill(7), ...Array(4).fill(8),
-                        ...Array(4).fill(9), ...Array(4).fill(10), ...Array(4).fill(11),
-                        ...Array(4).fill(12), ...Array(2).fill(13)
-                    ];
-                    cardStack = cardStack.sort(() => Math.random() - 0.5);
-                    const player1Hand = cardStack.splice(0, 4);
-                    const player2Hand = cardStack.splice(0, 4);
-                    const discardStack = cardStack.splice(0, 1);
-                    const resetRoomData = {
-                        cardStack: cardStack,
-                        discardStack: discardStack,
-                        player1Hand: player1Hand,
-                        player2Hand: player2Hand,
-                        gameState: "player1Turn", // Reset state
-                        createdAt: Timestamp.now() // Update timestamp
-                    };
-                    await setDoc(roomRef, resetRoomData); // Overwrite document
-                    console.log(`Room ${currentRoomCode} has been reset.`); // Cleaned log
-
-                    // Refresh UI elements after reset
-                    await updateDiscardStackDisplay(currentRoomCode); // Cleaned call
-                    if (currentPlayerRole) {
-                        await displayPlayerCards(currentRoomCode, currentPlayerRole); // Cleaned call
-                    }
-                    // Potentially need to re-attach listeners if displayPlayerCards modifies elements significantly
-                    setupCardEventListeners(); // Cleaned call
-
-                } catch (error) {
-                    console.error(`Error resetting room ${currentRoomCode}:`, error); // Cleaned log
-                    alert("Failed to reset the room. See console for details."); // Cleaned alert
-                }
+            console.log('Reset Room button clicked');
+            if (confirm('Are you sure you want to reset the room?')) {
+                await initializeGameRoom(currentRoomCode);
+                console.log('Room reset successfully');
             }
         });
     }
 
+    // --- Listen to gameState changes ---
+    listenToGameState(currentRoomCode);
 
-    console.log("Game initialization complete."); // Cleaned log
+    // --- Display Player Cards ---
+    await displayPlayerCards(currentRoomCode, currentPlayerRole);
+
+    console.log("Game initialization complete.");
 });
 
 
