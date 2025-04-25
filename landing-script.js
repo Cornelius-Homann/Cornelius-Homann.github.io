@@ -5,7 +5,7 @@ function joinGame(player, gameCode) {
         return;
     }
     // Redirect to index.html with player and game code as URL parameters
-    const url = `index.html?player=${encodeURIComponent(player)}&room=${encodeURIComponent(gameCode)}`;
+    const url = `cabo-game.html?player=${encodeURIComponent(player)}&room=${encodeURIComponent(gameCode)}`;
     window.location.href = url;
 }
 
