@@ -27,9 +27,10 @@ let currentPlayerRole = null; // Store the current player's role globally
  * Initializes a game room in Firestore if it doesn't exist.
  * Creates a shuffled deck, deals hands, and sets initial state.
  * @param {string} roomCode - The unique identifier for the game room.
- * @returns {Promise<boolean>} True if the room was newly created, false otherwise.
+ * @returns {boolean} True if the room was newly created, false otherwise.
  */
 async function initializeGameRoom(roomCode) {
+    unhighlightStacks(); // Unhighlight stacks on load
     if (!roomCode) {
         console.error("initializeGameRoom: roomCode is required.");
         return false;
@@ -82,7 +83,7 @@ function generateRoomData() {
     console.log("Player 2 Hand:", player2Hand);
     console.log("Initial Discard:", discardStack);
     console.log("Remaining Deck:", cardStack);
-
+    updateDiscardStackDisplay(currentRoomCode); // Update UI
     return {
         cardStack: cardStack,
         discardStack: discardStack,
@@ -311,83 +312,6 @@ async function displayPlayerCards(roomCode, playerRole) {
 }
 
 
-// --- UI Interaction Functions ---
-
-/**
- * Sets up click event listeners for player cards to flip them.
- */
-function setupCardEventListeners() {
-    const cardImages = document.querySelectorAll('.player .card-slot img'); // Target only player cards
-
-    cardImages.forEach((card) => {
-        // Remove existing listener to prevent duplicates if called multiple times
-        card.removeEventListener('click', handleCardClick);
-        // Add the new listener
-        card.addEventListener('click', handleCardClick);
-    });
-    console.log("Card click event listeners set up.");
-}
-
-/**
- * Handles the click event on a player card (flips it).
- * @param {Event} event - The click event object.
- */
-function handleCardClick(event) {
-    const card = event.target;
-    const cardFace = card.getAttribute('data-card');
-
-    // Only allow flipping if the card has a valid face value
-    if (!cardFace || cardFace === 'empty' || cardFace === '') {
-        console.log("Cannot flip empty or invalid card slot.");
-        return;
-    }
-
-    // Check the current src of the card
-    if (card.src.includes('back.png')) {
-        // If the card shows the back, flip it to show its face
-        card.src = `karten/${cardFace}.png`;
-    } else {
-        // If the card shows its face, flip it to show the back
-        card.src = 'karten/back.png';
-    }
-}
-
-
-/**
- * Rotates the game board view so the current player is always at the bottom.
- * @param {string} playerRole - 'player-1' or 'player-2'.
- */
-function rotatePageForPlayer(playerRole) {
-    const pageContainer = document.getElementById("page-container");
-
-    if (!pageContainer) {
-        console.error("Error: #page-container element not found.");
-        return;
-    }
-
-    let pageRotation = '0deg';
-
-    // Rotate the board for Player 1
-    if (playerRole === 'player-1') {
-        pageRotation = '180deg';
-        console.log('Applying 180deg rotation for Player 1 view.');
-    } else if (playerRole === 'player-2') {
-        pageRotation = '0deg';
-        console.log('Applying 0deg rotation for Player 2 view.');
-    } else {
-        console.warn(`Unknown player role: ${playerRole}. No rotation applied.`);
-    }
-
-    // Apply rotation to the page container
-    pageContainer.style.transform = `rotate(${pageRotation})`;
-    pageContainer.style.transition = 'transform 0.5s ease'; // Add smooth transition
-
-    // Rotate buttons and other UI elements back to normal
-    const buttons = document.querySelectorAll('.game-action-button');
-    buttons.forEach((button) => {
-        button.style.transform = `rotate(-${pageRotation})`;
-    });
-}
 
 /**
  * Sets the gameState variable for the current room in Firestore.
@@ -505,6 +429,33 @@ async function handleStartPhase() {
         console.error(`Card slots for ${currentPlayerRole} not found.`);
     }
 }
+async function handlePlayer1Turn() {
+    flipAllCardsToBack();
+
+
+    if (currentPlayerRole === "player-1") {
+        console.log("Player 1's turn. Highlighting stacks.");
+        // Highlight stacks for Player 1
+        highlightStacks(); // Highlight stacks for Player 1
+    }
+}
+
+
+function highlightStacks(){
+    document.getElementById('discard-stack').style.border = '2px dashed green'; // Highlight stacks for Player 1
+    document.getElementById('draw-stack').style.border = '2px dashed blue'; // Highlight stacks for Player 1
+}
+function unhighlightStacks(){
+    document.getElementById('discard-stack').style.border = ''; // Unhighlight stacks for Player 1
+    document.getElementById('draw-stack').style.border = ''; // Unhighlight stacks for Player 1
+}
+function flipAllCardsToBack() {
+    const allPlayerCards = document.querySelectorAll('.player .card-slot img');
+    allPlayerCards.forEach(img => {
+        img.src = 'karten/back.png';
+    });
+}
+
 
 // Map currentPlayerRole to Firestore keys
 function mapPlayerRoleToFirestoreKey(playerRole) {
@@ -516,7 +467,8 @@ function mapPlayerRoleToFirestoreKey(playerRole) {
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log("DOM Loaded. Initializing game...");
-
+    
+    unhighlightStacks(); // Unhighlight stacks on load
     // --- Get URL Parameters ---
     const queryString = window.location.search;
     const urlParams = new URLSearchParams(queryString);
@@ -533,35 +485,55 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log(`Using Room Code: ${currentRoomCode}`);
     console.log(`Detected Player Role: ${currentPlayerRole || 'N/A'}`);
 
-    // --- Initialize Game Room ---
+    // --- Rotate ---
     if (currentPlayerRole === 'player-1') {
-        console.log("Player 1 joined. Initializing or resetting the room...");
+        console.log("Player 1 joined.");
         document.getElementById('page-container').style.transform = 'rotate(180deg)'; // Rotate for Player 1
         document.getElementById('stacks').style.transform = 'rotate(180deg)'; // Rotate stacks for Player 1
-        await initializeGameRoom(currentRoomCode);
     } else {
-        console.log("Player 2 joined. Room will not be reinitialized.");
+        console.log("Player 2 joined.");
     }
+    updateDiscardStackDisplay(currentRoomCode); // Update discard stack display on load
 
     // --- Attach Event Listeners ---
     const btnCabo = document.getElementById('btnCabo');
     if (btnCabo) {
+        if (listenToGameState(currentRoomCode) !== "startphase") {
         btnCabo.disabled = false; // Ensure the button is enabled
         btnCabo.addEventListener('click', async () => {
             console.log('CABO button clicked');
             try {
                 const firestoreKey = mapPlayerRoleToFirestoreKey(currentPlayerRole);
+                console.log(`Firestore Key for ${currentPlayerRole}: ${firestoreKey}`);
                 if (!firestoreKey) return;
 
                 const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+                // Update the caboPressed field for the current player
                 await updateDoc(roomRef, {
                     [`caboPressed.${firestoreKey}`]: true
                 });
                 console.log(`${currentPlayerRole} pressed CABO`);
+
+                // Fetch the current caboPressed state
+                const roomSnap = await getDoc(roomRef);
+                if (roomSnap.exists()) {
+                    const caboPressed = roomSnap.data().caboPressed || {};
+                    console.log("Current caboPressed state:", caboPressed);
+
+                    // Check if both players have pressed CABO
+                    if (caboPressed.player1 && caboPressed.player2) {
+                        console.log("Both players pressed CABO. Transitioning to player1Turn.");
+                        await setGameState("player1Turn"); // Transition to player1Turn
+                    }
+                } else {
+                    console.error(`Room ${currentRoomCode} does not exist.`);
+                }
             } catch (error) {
                 console.error('Error updating CABO state:', error);
             }
         });
+    }
     } else {
         console.error('CABO button not found');
     }
@@ -573,6 +545,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (confirm('Are you sure you want to reset the room?')) {
                 await initializeGameRoom(currentRoomCode);
                 console.log('Room reset successfully');
+                updateDiscardStackDisplay(currentRoomCode); // Update discard stack display after reset
             }
         });
     }
@@ -584,6 +557,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await displayPlayerCards(currentRoomCode, currentPlayerRole);
 
     console.log("Game initialization complete.");
+   
 });
 
 

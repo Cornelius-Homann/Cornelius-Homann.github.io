@@ -24,7 +24,6 @@ html, body {
     margin: auto;
     position: relative;
     transform-origin: center;
-    transition: transform 0.5s ease;
     will-change: transform;
     overflow: hidden;
     display: flex;
@@ -79,15 +78,11 @@ html, body {
 }
 
 .card-slot img, .stacks img {
-    max-width: 100px; /* Adjust max size as needed */
-    max-height: 140px;
-    width: 100%;
-    height: auto;
-    object-fit: contain;
-    border: 1px solid #ccc;
-    border-radius: 5px;
+    height: 100%; /* Make the image fit perfectly height-wise */
+    width: auto; /* Maintain aspect ratio */
+    object-fit: contain; /* Ensure the image fits within the container without distortion */
+    max-height: 140px; /* Optional: Set a maximum height if needed */
 }
-
 
 /* Stacks layout */
 .stacks {
@@ -95,7 +90,7 @@ html, body {
     align-items: center;
     justify-content: center;
     gap: 10px; /* Compact gap between stacks/buttons */
-    margin: 2px 0; /* Compact vertical margin */
+    height: auto;
     width: 100%;
 }
 
@@ -117,7 +112,6 @@ html, body {
     border: 3px solid #f9f871; /* Yellow border */
     border-radius: 8px; /* Slightly rounded corners */
     cursor: pointer;
-    transition: background-color 0.3s ease, transform 0.2s ease;
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); /* Text shadow */
     flex-shrink: 0; /* Prevent shrinking */
     transform: rotate(0deg); /* Base rotation state */
@@ -191,4 +185,12 @@ html, body {
 .test-buttons button {
     padding: 3px 6px;
     font-size: 0.8rem;
+}
+
+#discard-stack {
+    padding-bottom: -5px;
+}
+
+#draw-stack {
+    padding-top: -5px;
 }

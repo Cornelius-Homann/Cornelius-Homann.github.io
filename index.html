@@ -3,187 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="style.css">
-    <!-- Load script as module -->
-    <script type="module" src="script.js"></script>
-    <link rel="icon" href="favicon.ico">
-    <title>Cabo Game</title>
+    <title>Cabo | Join Game</title>
+    <link rel="stylesheet" href="landing-style.css">
+    <script src="landing-script.js" type="module"></script>
 </head>
 <body>
-    <!-- Container for rotation -->
-    <div id="page-container">
-
-        <!-- Test Buttons (Removed onclick, added IDs) -->
-        <div class="test-buttons">
-            <button id="btnTestRotateP1">Test as Player One</button>
-            <button id="btnTestRotateP2">Test as Player Two</button>
-            <button id="btnInitRoom">Initialize Room</button>
-            <button id="btnAddDiscard">Add Card to Discard</button> 
-            <button id="btnClearDiscard">Clear Discard</button>
+    <div class="container">
+        <div class="header">
+            <h1>CA<span style="color: #f9f871;">BO</span></h1>
+            <p>Please Enter the Room Code</p>
         </div>
-
-        <!-- Game Board -->
-        <div class="game-board">
-            <!-- Player 1's cards -->
-            <div class="player player-1">
-                <div class="card-slot" id="player-1-card4">
-                    <img src="karten/back.png" alt="Player 1 Card 4" data-card="">
+        <div class="form-container">
+            <form id="joinForm">
+                <input type="number" id="gameCode" placeholder="Enter Game Code" min="0" required>
+                <div class="button-group">
+                    <button type="button" id="joinPlayerOne">Join as Player One</button>
+                    <button type="button" id="joinPlayerTwo">Join as Player Two</button>
                 </div>
-                <div class="card-slot" id="player-1-card3">
-                    <img src="karten/back.png" alt="Player 1 Card 3" data-card="">
-                </div>
-                <div class="card-slot" id="player-1-card2">
-                    <img src="karten/back.png" alt="Player 1 Card 2" data-card="">
-                </div>
-                <div class="card-slot" id="player-1-card1">
-                    <img src="karten/back.png" alt="Player 1 Card 1" data-card="">
-                </div>
-            </div>
-
-            <!-- Draw and discard stacks -->
-            <div class="stacks" id="stacks">
-                <!-- Add Reset Room Button -->
-                <button id="btnResetRoom" class="game-action-button reset-button">Reset Room</button>
-
-                <div class="draw-stack" id="draw-stack">
-                    <!-- Draw stack always shows back -->
-                    <img src="karten/back.png" alt="Draw Stack" data-card="">
-                </div>
-                <div class="discard-stack" id="discard-stack">
-                    <!-- Initial state empty, will be set by JS -->
-                    <img src="karten/empty.png" alt="Discard Stack" data-card="empty">
-                </div>
-
-                <!-- Add CABO Button -->
-                <button id="btnCabo" class="game-action-button cabo-button">CABO</button>
-            </div>
-
-            <!-- Player 2's cards -->
-            <div class="player player-2">
-                <div class="card-slot" id="player-2-card1">
-                    <img src="karten/back.png" alt="Player 2 Card 1" data-card="">
-                </div>
-                <div class="card-slot" id="player-2-card2">
-                    <img src="karten/back.png" alt="Player 2 Card 2" data-card="">
-                </div>
-                <div class="card-slot" id="player-2-card3">
-                    <img src="karten/back.png" alt="Player 2 Card 3" data-card="">
-                </div>
-                <div class="card-slot" id="player-2-card4">
-                    <img src="karten/back.png" alt="Player 2 Card 4" data-card="">
-                </div>
-            </div>
-        </div> <!-- End game-board -->
-    </div> <!-- End page-container -->
-
-    <script>
-        /**
- * Rotates the game board view so the current player is always at the bottom.
- * @param {string} playerRole - 'player-1' or 'player-2'.
- */
-function rotatePageForPlayer(playerRole) {
-    const pageContainer = document.getElementById("page-container");
-
-    if (!pageContainer) {
-        console.error("Error: #page-container element not found.");
-        return;
-    }
-
-    let pageRotation = '0deg';
-
-    // Rotate the board for Player 1
-    if (playerRole === 'player-1') {
-        pageRotation = '180deg';
-        console.log('Applying 180deg rotation for Player 1 view.');
-    } else if (playerRole === 'player-2') {
-        pageRotation = '0deg';
-        console.log('Applying 0deg rotation for Player 2 view.');
-    } else {
-        console.warn(`Unknown player role: ${playerRole}. No rotation applied.`);
-    }
-
-    // Apply rotation to the page container
-    pageContainer.style.transform = `rotate(${pageRotation})`;
-
-    // Rotate buttons and other UI elements back to normal
-    const buttons = document.querySelectorAll('.game-action-button');
-    buttons.forEach((button) => {
-        button.style.transform = `rotate(-${pageRotation})`;
-    });
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log("DOM Loaded. Initializing game...");
-
-    // --- Get URL Parameters ---
-    const queryString = window.location.search;
-    const urlParams = new URLSearchParams(queryString);
-    currentPlayerRole = urlParams.get('player'); // Store globally
-    let roomCodeParam = urlParams.get('room');
-
-    // --- Determine Room Code ---
-    if (roomCodeParam && roomCodeParam.trim() !== '') {
-        currentRoomCode = roomCodeParam.trim();
-    } else {
-        console.warn("Room code parameter ('room') missing or empty in URL. Using default room '1'.");
-        currentRoomCode = '1';
-    }
-    console.log(`Using Room Code: ${currentRoomCode}`);
-    console.log(`Detected Player Role: ${currentPlayerRole || 'N/A'}`);
-
-    // --- Initialize Game Room ---
-    if (currentPlayerRole === 'player-1') {
-        console.log("Player 1 joined. Initializing or resetting the room...");
-        await initializeGameRoom(currentRoomCode);
-    } else {
-        console.log("Player 2 joined. Room will not be reinitialized.");
-    }
-
-    // --- Rotate the Board ---
-    rotatePageForPlayer(currentPlayerRole);
-
-    // --- Attach Event Listeners ---
-    const btnCabo = document.getElementById('btnCabo');
-    if (btnCabo) {
-        btnCabo.disabled = false; // Ensure the button is enabled
-        btnCabo.addEventListener('click', async () => {
-            console.log('CABO button clicked');
-            try {
-                const firestoreKey = mapPlayerRoleToFirestoreKey(currentPlayerRole);
-                if (!firestoreKey) return;
-
-                const roomRef = doc(db, 'gameRooms', currentRoomCode);
-                await updateDoc(roomRef, {
-                    [`caboPressed.${firestoreKey}`]: true
-                });
-                console.log(`${currentPlayerRole} pressed CABO`);
-            } catch (error) {
-                console.error('Error updating CABO state:', error);
-            }
-        });
-    } else {
-        console.error('CABO button not found');
-    }
-
-    const btnResetRoom = document.getElementById('btnResetRoom');
-    if (btnResetRoom) {
-        btnResetRoom.addEventListener('click', async () => {
-            console.log('Reset Room button clicked');
-            if (confirm('Are you sure you want to reset the room?')) {
-                await initializeGameRoom(currentRoomCode);
-                console.log('Room reset successfully');
-            }
-        });
-    }
-
-    // --- Listen to gameState changes ---
-    listenToGameState(currentRoomCode);
-
-    // --- Display Player Cards ---
-    await displayPlayerCards(currentRoomCode, currentPlayerRole);
-
-    console.log("Game initialization complete.");
-});
-    </script>
+            </form>
+        </div>
+        <div class="image-container">
+            <img src="karten/0.png" alt="Card 0">
+            <img src="karten/1.png" alt="Card 1">
+            <img src="karten/2.png" alt="Card 2">
+            <img src="karten/3.png" alt="Card 3">
+        </div>
+    </div>
 </body>
 </html>
