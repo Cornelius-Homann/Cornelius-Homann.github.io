@@ -98,6 +98,9 @@ html, body {
 .stacks img {
     max-width: 80px; /* Smaller size for stack images */
     max-height: 112px;
+    border: #000000 2px solid; /* Optional: Add a border for visibility */
+    border-radius: 10%;
+    margin: 3px; /* Optional: Add margin for spacing */
 }
 
 
@@ -193,4 +196,63 @@ html, body {
 
 #draw-stack {
     padding-top: -5px;
+}
+
+.preview-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-left: 24px;
+    border: 3px dashed #000000;
+    border-radius: 12px;
+    padding: 8px 12px;
+    
+    min-width: 100px;
+}
+.preview-label {
+    font-size: 1rem;
+    font-weight: bold;
+    color: #000000;
+    margin-bottom: 6px;
+    letter-spacing: 1px;
+}
+#preview-card-img {
+    width: 80px;
+    height: 112px;
+    object-fit: contain;
+    border: 2px solid #000000;
+    border-radius: 6px;
+    
+}
+#score-overlay {
+    animation: fadeIn 0.5s;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.phase-indicator {
+    position: absolute;
+    top: 18px;
+    left: 18px;
+    transform: none;
+    background: rgba(255,255,255,0.92);
+    color: #8b0000;
+    font-size: 1.3rem;
+    font-weight: bold;
+    padding: 8px 28px;
+    border-radius: 16px;
+    border: 2px solid #db7d3d;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    z-index: 100;
+    letter-spacing: 1px;
+    min-width: 180px;
+    text-align: center;
+    user-select: none;
+    transition: transform 0.3s;
+}
+.phase-indicator.rotated {
+    transform: rotate(180deg);
+    top: 18px;
+    left: 18px;
 }

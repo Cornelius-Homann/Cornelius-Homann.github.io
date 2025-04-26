@@ -31,6 +31,7 @@ let currentPlayerRole = null; // Store the current player's role globally
  */
 async function initializeGameRoom(roomCode) {
     unhighlightStacks(); // Unhighlight stacks on load
+    flipAllCardsToBack(); // Flip all cards to back on load
     if (!roomCode) {
         console.error("initializeGameRoom: roomCode is required.");
         return false;
@@ -89,11 +90,12 @@ function generateRoomData() {
         discardStack: discardStack,
         player1Hand: player1Hand,
         player2Hand: player2Hand,
-        gameState: "startphase", // Start with the start phase
+        gameState: "startphase",
         caboPressed: {
             player1: false,
             player2: false
-        }
+        },
+        previewCard: null // <-- Add this line
     };
 }
 
@@ -159,7 +161,7 @@ async function addToDiscardStack(roomCode, card) {
 }
 
 /**
- * Takes and removes the top card from the card stack for a specific room.
+ * Takes and removes the top card from the draw stack for a specific room.
  * @param {string} roomCode - The unique identifier for the game room.
  * @returns {Promise<number|null>} The card value or null if error/empty.
  */
@@ -196,7 +198,76 @@ async function takeFromCardStack(roomCode) {
         return null;
     }
 }
+/**
+ * Takes and removes the top card from the discard stack for a specific room.
+ * @param {string} roomCode - The unique identifier for the game room.
+ * @returns {Promise<number|null>} The card value or null if error/empty.
+ */
+async function takeFromDiscardStack(roomCode) {
+    if (!roomCode) {
+        console.error("takeFromDiscardStack: roomCode is required.");
+        return null;
+    }
+    const roomRef = doc(db, 'gameRooms', roomCode);
 
+    try {
+        const roomSnap = await getDoc(roomRef);
+        if (!roomSnap.exists()) {
+            console.log(`Room ${roomCode}: Room document does not exist.`);
+            return null;
+        }
+
+        let roomData = roomSnap.data();
+        let discardStack = roomData.discardStack || [];
+
+        if (discardStack.length === 0) {
+            console.log(`Room ${roomCode}: disCard stack is empty.`);
+            // TODO: Implement reshuffling discard pile into deck if needed
+            return null;
+        }
+
+        const firstCard = discardStack.pop(); // Take the top (newest) card
+
+        await updateDoc(roomRef, { discardStack: discardStack }); // Update the stack in Firestore
+        console.log(`Room ${roomCode}: Took card ${firstCard}. Remaining stack size: ${discardStack.length}`);
+        return firstCard; // Return the removed card
+    } catch (error) {
+        console.error(`Room ${roomCode}: Error taking card from card stack:`, error);
+        return null;
+    }
+}
+/*
+    * Adds a card to the discard stack for a specific room.
+    * @param {string} roomCode - The unique identifier for the game room.
+    * @param {number} card - The card value to add.
+*/
+async function addCardToDiscardStack(roomCode, card) {
+    if (!roomCode) {
+        console.error("addCardToDiscardStack: roomCode is required.");
+        return;
+    }
+    if (card === null || card === undefined) {
+        console.error("addCardToDiscardStack: Invalid card value provided.");
+        return;
+    }
+    const roomRef = doc(db, 'gameRooms', roomCode);
+
+    try {
+        const roomSnap = await getDoc(roomRef); // Get current data to avoid overwriting
+        if (!roomSnap.exists()) {
+            console.error(`addCardToDiscardStack: Room ${roomCode} does not exist.`);
+            return;
+        }
+        let currentDiscardStack = roomSnap.data().discardStack || [];
+        currentDiscardStack.push(card);
+
+        await updateDoc(roomRef, { discardStack: currentDiscardStack }); // Update only the discard stack
+        console.log(`Room ${roomCode}: Added card ${card} to discard stack:`, currentDiscardStack);
+        await updateDiscardStackDisplay(roomCode); // Update UI
+    } catch (error) {
+        console.error(`Room ${roomCode}: Error adding card to discard stack:`, error);
+    }
+}
 /**
  * Clears the discard stack for a specific room.
  * @param {string} roomCode - The unique identifier for the game room.
@@ -268,7 +339,7 @@ async function updateDiscardStackDisplay(roomCode) {
  * @param {string} roomCode - The unique identifier for the game room.
  * @param {string} playerRole - 'player-1' or 'player-2'.
  */
-async function displayPlayerCards(roomCode, playerRole) {
+async function displayPlayerCards(roomCode, playerRole, revealAll = false) {
     if (!roomCode || !playerRole) {
         console.error("displayPlayerCards: roomCode and playerRole are required.");
         return;
@@ -299,10 +370,14 @@ async function displayPlayerCards(roomCode, playerRole) {
             return;
         }
 
-        // Initialize all cards as back.png
+        // Show card faces if revealAll, otherwise show backs
         playerCardSlots.forEach((imgElement, index) => {
-            imgElement.src = "karten/back.png"; // Set to back of the card
-            imgElement.setAttribute("data-card", playerHandData[index]); // Store the card value for flipping
+            if (revealAll) {
+                imgElement.src = `karten/${playerHandData[index]}.png`;
+            } else {
+                imgElement.src = "karten/back.png";
+            }
+            imgElement.setAttribute("data-card", playerHandData[index]);
         });
 
         console.log(`Room ${roomCode}: Initialized cards for ${playerRole}.`);
@@ -357,6 +432,21 @@ function listenToGameState(roomCode) {
 
         const roomData = docSnap.data();
         const gameState = roomData.gameState;
+        updatePhaseIndicator(gameState); // <-- Add this line
+
+        // Enable or disable CABO button based on game state and player turn
+        const btnCabo = document.getElementById('btnCabo');
+        if (btnCabo) {
+            if (
+                gameState === "startphase" ||
+                (gameState === "player1Turn" && currentPlayerRole === "player-1") ||
+                (gameState === "player2Turn" && currentPlayerRole === "player-2")
+            ) {
+                btnCabo.disabled = false;
+            } else {
+                btnCabo.disabled = true;
+            }
+        }
 
         console.log(`Room ${roomCode}: gameState changed to "${gameState}".`);
 
@@ -383,7 +473,19 @@ function listenToGameState(roomCode) {
         }
     });
 }
-
+function listenToDiscardStack(roomCode) {
+    const roomRef = doc(db, 'gameRooms', roomCode);
+    onSnapshot(roomRef, (docSnap) => {
+        if (!docSnap.exists()) {
+            console.error(`Room ${roomCode} does not exist. Cannot listen to discard stack.`);
+            return;
+        }
+        const roomData = docSnap.data();
+        if ('discardStack' in roomData) {
+            updateDiscardStackDisplay(roomCode);
+        }
+    });
+}
 async function handleStartPhase() {
     console.log("Start phase initiated.");
 
@@ -429,25 +531,531 @@ async function handleStartPhase() {
         console.error(`Card slots for ${currentPlayerRole} not found.`);
     }
 }
-async function handlePlayer1Turn() {
+// --- Update handlePlayer1Turn and handlePlayer2Turn to enforce correct turn flow ---
+async function handlePlayer1Turn(caboMode = false) {
     flipAllCardsToBack();
-
+    clearStackClickHandlers(); // Prevent other player from interacting
 
     if (currentPlayerRole === "player-1") {
-        console.log("Player 1's turn. Highlighting stacks.");
-        // Highlight stacks for Player 1
-        highlightStacks(); // Highlight stacks for Player 1
+        highlightStacks();
+        const drawStack = document.getElementById('draw-stack');
+        const discardStack = document.getElementById('discard-stack');
+        let cardTaken = false;
+
+        if (drawStack) {
+            drawStack.onclick = async () => {
+                if (cardTaken) return;
+                cardTaken = true;
+                const takenCard = await takeFromCardStack(currentRoomCode);
+                if (takenCard !== null && takenCard !== undefined) {
+                    showPreviewCard(takenCard);
+                    await setPreviewCard(currentRoomCode, takenCard);
+                    highlightCards("player-1");
+                    await enableSwitchOrDiscard(takenCard, "player-1", async () => {
+                        unhighlightCards("player-1");
+                        unhighlightStacks();
+                        cardTaken = false;
+                        if (caboMode) {
+                            await setGameState("scoring");
+                        } else {
+                            setGameState("player2Turn");
+                        }
+                    }, "draw");
+                } else {
+                    cardTaken = false;
+                }
+            };
+        }
+        if (discardStack) {
+            discardStack.onclick = async () => {
+                if (cardTaken) return;
+                cardTaken = true;
+                const takenCard = await takeFromDiscardStack(currentRoomCode);
+                if (takenCard !== null && takenCard !== undefined) {
+                    showPreviewCard(takenCard);
+                    await setPreviewCard(currentRoomCode, takenCard);
+                    updateDiscardStackDisplay(currentRoomCode);
+                    highlightCards("player-1");
+                    await enableSwitchOrDiscard(takenCard, "player-1", async () => {
+                        unhighlightCards("player-1");
+                        unhighlightStacks();
+                        cardTaken = false;
+                        if (caboMode) {
+                            await setGameState("scoring");
+                        } else {
+                            setGameState("player2Turn");
+                        }
+                    }, "discard");
+                } else {
+                    cardTaken = false;
+                }
+            };
+        }
     }
 }
 
+async function handlePlayer2Turn(caboMode = false) {
+    flipAllCardsToBack();
+    clearStackClickHandlers(); // Prevent other player from interacting
+
+    if (currentPlayerRole === "player-2") {
+        highlightStacks();
+        const drawStack = document.getElementById('draw-stack');
+        const discardStack = document.getElementById('discard-stack');
+        let cardTaken = false;
+
+        if (drawStack) {
+            drawStack.onclick = async () => {
+                if (cardTaken) return;
+                cardTaken = true;
+                const takenCard = await takeFromCardStack(currentRoomCode);
+                if (takenCard !== null && takenCard !== undefined) {
+                    showPreviewCard(takenCard);
+                    await setPreviewCard(currentRoomCode, takenCard);
+                    highlightCards("player-2");
+                    await enableSwitchOrDiscard(takenCard, "player-2", async () => {
+                        unhighlightCards("player-2");
+                        unhighlightStacks();
+                        cardTaken = false;
+                        if (caboMode) {
+                            await setGameState("scoring");
+                        } else {
+                            setGameState("player1Turn");
+                        }
+                    }, "draw");
+                } else {
+                    cardTaken = false;
+                }
+            };
+        }
+        if (discardStack) {
+            discardStack.onclick = async () => {
+                if (cardTaken) return;
+                cardTaken = true;
+                const takenCard = await takeFromDiscardStack(currentRoomCode);
+                if (takenCard !== null && takenCard !== undefined) {
+                    showPreviewCard(takenCard);
+                    await setPreviewCard(currentRoomCode, takenCard);
+                    updateDiscardStackDisplay(currentRoomCode);
+                    highlightCards("player-2");
+                    await enableSwitchOrDiscard(takenCard, "player-2", async () => {
+                        unhighlightCards("player-2");
+                        unhighlightStacks();
+                        cardTaken = false;
+                        if (caboMode) {
+                            await setGameState("scoring");
+                        } else {
+                            setGameState("player1Turn");
+                        }
+                    }, "discard");
+                } else {
+                    cardTaken = false;
+                }
+            };
+        }
+    }
+}
+
+async function handleCaboCalled() {
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const roomData = roomSnap.data();
+
+    const caboCaller = roomData.caboCaller;
+    let nextPlayer = null;
+
+    if (caboCaller === "player-1") {
+        nextPlayer = "player-2";
+    } else if (caboCaller === "player-2") {
+        nextPlayer = "player-1";
+    } else {
+        console.error("No caboCaller set!");
+        return;
+    }
+
+    // Only allow the non-caller to play
+    if (currentPlayerRole === nextPlayer) {
+        // Give the non-caller their final turn
+        if (nextPlayer === "player-1") {
+            await handlePlayer1Turn(true); // Pass a flag for cabo mode
+        } else {
+            await handlePlayer2Turn(true);
+        }
+    }
+}
+
+async function handleScoringPhase() {
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const roomData = roomSnap.data();
+
+    // Flip all cards face up for both players
+    await displayPlayerCards(currentRoomCode, "player-1", true);
+    await displayPlayerCards(currentRoomCode, "player-2", true);
+
+    // Calculate scores based on player hands
+    const player1Score = calculateScore(roomData.player1Hand);
+    const player2Score = calculateScore(roomData.player2Hand);
+
+    // Determine winner
+    let winnerText = "";
+    if (player1Score < player2Score) {
+        winnerText = "Player 1 wins! 🎉";
+    } else if (player2Score < player1Score) {
+        winnerText = "Player 2 wins! 🎉";
+    } else {
+        winnerText = "It's a tie!";
+    }
+
+    // Show overlay with scores and winner
+    showScoreOverlay(player1Score, player2Score, winnerText);
+
+    // Launch confetti effect
+    launchConfetti();
+}
+
+function calculateScore(playerHand) {
+    // If playerHand is not an array or has wrong length, return 0
+    if (!Array.isArray(playerHand) || playerHand.length !== 4) {
+        return 0;
+    }
+    // Sum up the values of the cards in the hand
+    return playerHand.reduce((sum, card) => sum + (typeof card === "number" ? card : 0), 0);
+}
+
+/**
+ * --- Helper function to allow only switch or discard after taking a card ---
+ */
+async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
+    // Remove stack click handlers to prevent taking another card
+    clearStackClickHandlers();
+
+    // Enable switching out with a hand card
+    const playerHandKey = player === "player-1" ? "player1Hand" : "player2Hand";
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    playerCardSlots.forEach((cardSlot) => {
+        cardSlot.onclick = async () => {
+            // Extract the card index from the ID, e.g., "player-1-card-4"
+            const idMatch = cardSlot.parentElement.id.match(/card(\d)$/);
+            if (!idMatch) {
+                console.error("Could not determine card index from ID:", cardSlot.parentElement.id);
+                return;
+            }
+            const cardIndex = parseInt(idMatch[1], 10) - 1;
+
+            // Fetch latest hand/discard
+            const roomSnap = await getDoc(roomRef);
+            const roomData = roomSnap.data();
+            const playerHand = [...roomData[playerHandKey]];
+            let discardStack = Array.isArray(roomData.discardStack) ? [...roomData.discardStack] : [];
+
+            const currentCard = playerHand[cardIndex];
+            playerHand[cardIndex] = takenCard;
+            discardStack.push(currentCard);
+
+            await updateDoc(roomRef, {
+                [playerHandKey]: playerHand,
+                discardStack: discardStack
+            });
+
+            await clearPreviewCard();
+            await updateDiscardStackDisplay(currentRoomCode);
+            displayPlayerCards(currentRoomCode, player);
+
+            // Remove hand card click handlers after action
+            playerCardSlots.forEach(slot => slot.onclick = null);
+
+            unhighlightCards(player);
+            unhighlightStacks();
+
+            if (onComplete) onComplete();
+        };
+    });
+
+    // Highlight player cards always
+    highlightCards(player);
+
+    // If the card was drawn from the draw stack, allow discarding by clicking the discard stack
+    if (source === "draw") {
+        // Only highlight the discard stack (not the draw stack)
+        unhighlightStacks();
+        highlightDiscardStack();
+
+        const discardStackElem = document.getElementById('discard-stack');
+        if (discardStackElem) {
+            discardStackElem.onclick = async () => {
+                // Fetch latest discard stack
+                const roomSnap = await getDoc(roomRef);
+                let discardStack = Array.isArray(roomSnap.data().discardStack) ? [...roomSnap.data().discardStack] : [];
+                discardStack.push(takenCard);
+
+                await updateDoc(roomRef, { discardStack: discardStack });
+                await clearPreviewCard();
+                await updateDiscardStackDisplay(currentRoomCode);
+
+                // Remove hand card click handlers after action
+                playerCardSlots.forEach(slot => slot.onclick = null);
+
+                unhighlightCards(player);
+                unhighlightStacks();
+
+                // --- EXTRA ACTION LOGIC ---
+                if (takenCard === 7 || takenCard === 8) {
+                    peek(player, onComplete); // Only call onComplete after peek is finished
+                    // Do NOT call onComplete() here!
+                } else if (takenCard === 9 || takenCard === 10) {
+                    spy(player, onComplete); // Only call onComplete after spy is finished
+                    // Do NOT call onComplete() here!
+                } else if (takenCard === 11 || takenCard === 12) {
+                    swap(player, onComplete); // Only call onComplete after swap is finished
+                    // Do NOT call onComplete() here!
+                } else {
+                    if (onComplete) onComplete();
+                }
+            };
+        }
+    } else {
+        // If from discard stack, do not allow discarding the preview card, and do not highlight discard stack
+        unhighlightDiscardStack();
+    }
+
+    // Remove preview card border highlight in all cases
+    const previewImg = document.getElementById('preview-card-img');
+    if (previewImg) {
+        previewImg.style.border = '';
+        previewImg.onclick = null;
+    }
+}
+
+//EXTRA ACTIONS
+
+function peek(player = currentPlayerRole, onComplete) {
+    const playerHandKey = player === "player-1" ? "player1Hand" : "player2Hand";
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    let revealedIndex = null;
+
+    // Highlight all cards at the start of peek
+    highlightCards(player);
+
+    playerCardSlots.forEach((cardSlot, idx) => {
+        cardSlot.onclick = async () => {
+            // Only allow one card to be revealed at a time
+            if (revealedIndex !== null && revealedIndex !== idx) return;
+
+            if (revealedIndex === null) {
+                // Reveal the card face
+                const roomSnap = await getDoc(roomRef);
+                const roomData = roomSnap.data();
+                const playerHand = roomData[playerHandKey];
+                cardSlot.src = `karten/${playerHand[idx]}.png`;
+                revealedIndex = idx;
+
+                // Remove all click handlers except for the revealed card
+                playerCardSlots.forEach((slot, i) => {
+                    if (i !== idx) {
+                        slot.onclick = null;
+                        slot.style.border = ''; // Remove highlight from other cards
+                        slot.style.borderRadius = ''; // Remove border radius
+                    } else {
+                        slot.style.border = '2px solid red';
+                        slot.style.borderRadius = '5px';
+                    }
+                });
+            } else {
+                // Hide the card again (flip to back), unhighlight, remove handlers
+                cardSlot.src = "karten/back.png";
+                unhighlightCards(player);
+                playerCardSlots.forEach(slot => slot.onclick = null);
+
+                // End turn: pass to next player or scoring depending on game state
+                if (onComplete) onComplete();
+            }
+        };
+    });
+}
+
+function spy(player = currentPlayerRole, onComplete) {
+    // Determine opponent
+    const opponent = player === "player-1" ? "player-2" : "player-1";
+    const opponentHandKey = opponent === "player-1" ? "player1Hand" : "player2Hand";
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const opponentCardSlots = document.querySelectorAll(`.player.${opponent} .card-slot img`);
+    let revealedIndex = null;
+
+    // Highlight all opponent cards at the start of spy
+    highlightCards(opponent);
+
+    opponentCardSlots.forEach((cardSlot, idx) => {
+        cardSlot.onclick = async () => {
+            // Only allow one card to be revealed at a time
+            if (revealedIndex !== null && revealedIndex !== idx) return;
+
+            if (revealedIndex === null) {
+                // Reveal the card face
+                const roomSnap = await getDoc(roomRef);
+                const roomData = roomSnap.data();
+                const opponentHand = roomData[opponentHandKey];
+                cardSlot.src = `karten/${opponentHand[idx]}.png`;
+                revealedIndex = idx;
+
+                // Remove all click handlers except for the revealed card
+                opponentCardSlots.forEach((slot, i) => {
+                    if (i !== idx) {
+                        slot.onclick = null;
+                        slot.style.border = ''; // Remove highlight from other cards
+                        slot.style.borderRadius = ''; // Remove border radius
+                    } else {
+                        slot.style.border = '2px solid blue';
+                        slot.style.borderRadius = '5px';
+                    }
+                });
+            } else {
+                // Hide the card again (flip to back), unhighlight, remove handlers
+                cardSlot.src = "karten/back.png";
+                unhighlightCards(opponent);
+                opponentCardSlots.forEach(slot => slot.onclick = null);
+
+                // End turn: pass to next player or scoring depending on game state
+                if (onComplete) onComplete();
+            }
+        };
+    });
+}
+
+function swap(player = currentPlayerRole, onComplete) {
+    // Determine opponent
+    const opponent = player === "player-1" ? "player-2" : "player-1";
+    const playerHandKey = player === "player-1" ? "player1Hand" : "player2Hand";
+    const opponentHandKey = opponent === "player-1" ? "player1Hand" : "player2Hand";
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    const opponentCardSlots = document.querySelectorAll(`.player.${opponent} .card-slot img`);
+
+    let selectedPlayerIdx = null;
+    let selectedOpponentIdx = null;
+
+    // Step 1: Highlight only own cards for selection
+    highlightCards(player);
+    unhighlightCards(opponent);
+
+    // Step 1: Select a card from the active player's hand
+    playerCardSlots.forEach((cardSlot, idx) => {
+        cardSlot.onclick = async () => {
+            if (selectedPlayerIdx !== null) return; // Only allow one selection
+            selectedPlayerIdx = idx;
+
+            // Highlight only the selected card
+            playerCardSlots.forEach((slot, i) => {
+                slot.onclick = null;
+                slot.style.border = i === idx ? '2px solid orange' : '';
+                slot.style.borderRadius = i === idx ? '5px' : '';
+            });
+
+            // Step 2: Now highlight and allow selection of opponent's card
+            highlightCards(opponent);
+
+            opponentCardSlots.forEach((oppSlot, oppIdx) => {
+                oppSlot.onclick = async () => {
+                    if (selectedOpponentIdx !== null) return;
+                    selectedOpponentIdx = oppIdx;
+
+                    // Highlight only the selected opponent card
+                    opponentCardSlots.forEach((slot, i) => {
+                        slot.onclick = null;
+                        slot.style.border = i === oppIdx ? '2px solid orange' : '';
+                        slot.style.borderRadius = i === oppIdx ? '5px' : '';
+                    });
+
+                    // Swap the cards in Firestore
+                    const roomSnap = await getDoc(roomRef);
+                    const roomData = roomSnap.data();
+                    const playerHand = [...roomData[playerHandKey]];
+                    const opponentHand = [...roomData[opponentHandKey]];
+
+                    // Swap the selected cards
+                    const temp = playerHand[selectedPlayerIdx];
+                    playerHand[selectedPlayerIdx] = opponentHand[selectedOpponentIdx];
+                    opponentHand[selectedOpponentIdx] = temp;
+
+                    await updateDoc(roomRef, {
+                        [playerHandKey]: playerHand,
+                        [opponentHandKey]: opponentHand
+                    });
+
+                    // Update UI
+                    await displayPlayerCards(currentRoomCode, player);
+                    await displayPlayerCards(currentRoomCode, opponent);
+
+                    // Remove highlights and handlers
+                    unhighlightCards(player);
+                    unhighlightCards(opponent);
+
+                    // End turn
+                    if (onComplete) onComplete();
+                };
+            });
+        };
+    });
+}
+
+async function showPreviewCard(cardValue) {
+    const previewImg = document.getElementById('preview-card-img');
+    if (cardValue === null || cardValue === undefined) {
+        previewImg.src = 'karten/empty.png';
+        previewImg.setAttribute('data-card', 'empty');
+    } else {
+        previewImg.src = `karten/${cardValue}.png`;
+        previewImg.setAttribute('data-card', cardValue);
+    }
+}
+
+async function clearPreviewCard() {
+    await setPreviewCard(currentRoomCode, null);
+    showPreviewCard(null); // Show empty card
+}
 
 function highlightStacks(){
     document.getElementById('discard-stack').style.border = '2px dashed green'; // Highlight stacks for Player 1
+    document.getElementById('discard-stack').style.borderRadius = '10px'; // Highlight stacks for Player 1
+
     document.getElementById('draw-stack').style.border = '2px dashed blue'; // Highlight stacks for Player 1
+    document.getElementById('draw-stack').style.borderRadius = '10px'; // Highlight stacks for Player 1
 }
 function unhighlightStacks(){
     document.getElementById('discard-stack').style.border = ''; // Unhighlight stacks for Player 1
     document.getElementById('draw-stack').style.border = ''; // Unhighlight stacks for Player 1
+    document.getElementById('draw-stack').style.borderRadius = ''; // Unhighlight stacks for Player 1
+    document.getElementById('discard-stack').style.borderRadius = ''; // Unhighlight stacks for Player 1
+}
+function highlightDiscardStack() {
+        const discardStack = document.getElementById('discard-stack');
+        discardStack.style.border = '2px dashed green'; // Highlight discard stack
+}
+function unhighlightDiscardStack() {
+        const discardStack = document.getElementById('discard-stack');
+        discardStack.style.border = ''; // Unhighlight discard stack
+}
+function highlightCards(player){
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    playerCardSlots.forEach((img) => {
+        img.style.border = '2px solid red'; // Highlight the card
+        img.style.borderRadius = '5px';     // Add border radius
+    });
+}
+function unhighlightCards(player){
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    playerCardSlots.forEach((img) => {
+        img.style.border = ''; // Remove highlight from the card
+        img.style.borderRadius = ''; // Remove border radius
+    });
 }
 function flipAllCardsToBack() {
     const allPlayerCards = document.querySelectorAll('.player .card-slot img');
@@ -455,7 +1063,25 @@ function flipAllCardsToBack() {
         img.src = 'karten/back.png';
     });
 }
-
+async function setPreviewCard(roomCode, cardValue) {
+    if (!roomCode) return;
+    const roomRef = doc(db, 'gameRooms', roomCode);
+    await updateDoc(roomRef, { previewCard: cardValue });
+}
+async function restorePreviewCard(roomCode, currentGameState) {
+    if ((currentPlayerRole === "player-1" && currentGameState === "player1Turn") ||
+        (currentPlayerRole === "player-2" && currentGameState === "player2Turn")) {
+        const roomRef = doc(db, 'gameRooms', roomCode);
+        const roomSnap = await getDoc(roomRef);
+        if (roomSnap.exists()) {
+            const previewCard = roomSnap.data().previewCard;
+            showPreviewCard(previewCard);
+        }
+    } else {
+        console.log("Not the player's turn. Hiding preview card.");
+        showPreviewCard(null); // Hide preview card if not the player's turn
+    }
+}
 
 // Map currentPlayerRole to Firestore keys
 function mapPlayerRoleToFirestoreKey(playerRole) {
@@ -490,50 +1116,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log("Player 1 joined.");
         document.getElementById('page-container').style.transform = 'rotate(180deg)'; // Rotate for Player 1
         document.getElementById('stacks').style.transform = 'rotate(180deg)'; // Rotate stacks for Player 1
+        document.getElementById('phase-indicator').classList.add('rotated');
     } else {
-        console.log("Player 2 joined.");
+        document.getElementById('phase-indicator').classList.remove('rotated');
     }
-    updateDiscardStackDisplay(currentRoomCode); // Update discard stack display on load
+    updateDiscardStackDisplay(currentRoomCode); // Initial display
+    listenToDiscardStack(currentRoomCode);      // Real-time updates
 
     // --- Attach Event Listeners ---
     const btnCabo = document.getElementById('btnCabo');
     if (btnCabo) {
-        if (listenToGameState(currentRoomCode) !== "startphase") {
-        btnCabo.disabled = false; // Ensure the button is enabled
-        btnCabo.addEventListener('click', async () => {
-            console.log('CABO button clicked');
-            try {
-                const firestoreKey = mapPlayerRoleToFirestoreKey(currentPlayerRole);
-                console.log(`Firestore Key for ${currentPlayerRole}: ${firestoreKey}`);
-                if (!firestoreKey) return;
+        btnCabo.onclick = async () => {
+            const roomRef = doc(db, 'gameRooms', currentRoomCode);
+            const firestoreKey = mapPlayerRoleToFirestoreKey(currentPlayerRole);
+            if (!firestoreKey) return;
 
-                const roomRef = doc(db, 'gameRooms', currentRoomCode);
+            const roomSnap = await getDoc(roomRef);
+            if (!roomSnap.exists()) return;
+            const roomData = roomSnap.data();
 
-                // Update the caboPressed field for the current player
+            // --- Startphase: Mark CABO pressed, transition if both pressed ---
+            if (roomData.gameState === "startphase") {
                 await updateDoc(roomRef, {
                     [`caboPressed.${firestoreKey}`]: true
                 });
-                console.log(`${currentPlayerRole} pressed CABO`);
-
-                // Fetch the current caboPressed state
-                const roomSnap = await getDoc(roomRef);
-                if (roomSnap.exists()) {
-                    const caboPressed = roomSnap.data().caboPressed || {};
-                    console.log("Current caboPressed state:", caboPressed);
-
-                    // Check if both players have pressed CABO
-                    if (caboPressed.player1 && caboPressed.player2) {
-                        console.log("Both players pressed CABO. Transitioning to player1Turn.");
-                        await setGameState("player1Turn"); // Transition to player1Turn
-                    }
-                } else {
-                    console.error(`Room ${currentRoomCode} does not exist.`);
+                // Check if both pressed
+                const updatedSnap = await getDoc(roomRef);
+                const caboPressed = updatedSnap.data().caboPressed || {};
+                if (caboPressed.player1 && caboPressed.player2) {
+                    await setGameState("player1Turn");
                 }
-            } catch (error) {
-                console.error('Error updating CABO state:', error);
+                return;
             }
-        });
-    }
+
+            // --- Turn phases: Only active player can call CABO, transition to caboCalled ---
+            if (
+                (roomData.gameState === "player1Turn" && currentPlayerRole === "player-1") ||
+                (roomData.gameState === "player2Turn" && currentPlayerRole === "player-2")
+            ) {
+                await updateDoc(roomRef, {
+                    gameState: "caboCalled",
+                    caboCaller: currentPlayerRole // "player-1" or "player-2"
+                });
+                unhighlightStacks(); // <-- Add this line
+                console.log("Game state updated to 'caboCalled'.");
+                return;
+            }
+        };
     } else {
         console.error('CABO button not found');
     }
@@ -546,6 +1175,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 await initializeGameRoom(currentRoomCode);
                 console.log('Room reset successfully');
                 updateDiscardStackDisplay(currentRoomCode); // Update discard stack display after reset
+                const currentGameState = (await getDoc(doc(db, 'gameRooms', currentRoomCode))).data().gameState;
+                restorePreviewCard(currentRoomCode, currentGameState); // Restore preview card after reset
             }
         });
     }
@@ -555,10 +1186,141 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Display Player Cards ---
     await displayPlayerCards(currentRoomCode, currentPlayerRole);
+    const currentGameState = (await getDoc(doc(db, 'gameRooms', currentRoomCode))).data().gameState;
+    restorePreviewCard(currentRoomCode, currentGameState); // Restore preview card if needed
 
     console.log("Game initialization complete.");
    
 });
+function showScoreOverlay(score1, score2, winnerText) {
+    let overlay = document.getElementById('score-overlay');
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = 'score-overlay';
+        overlay.style.position = 'fixed';
+        overlay.style.top = '0';
+        overlay.style.left = '0';
+        overlay.style.width = '100vw';
+        overlay.style.height = '100vh';
+        overlay.style.background = 'rgba(0,0,0,0.7)';
+        overlay.style.display = 'flex';
+        overlay.style.flexDirection = 'column';
+        overlay.style.justifyContent = 'center';
+        overlay.style.alignItems = 'center';
+        overlay.style.zIndex = '9999';
+        overlay.style.color = '#fff';
+        overlay.style.fontSize = '2rem';
+        overlay.innerHTML = `
+            <div style="background:#222;padding:32px 48px;border-radius:20px;text-align:center;">
+                <div style="font-size:2.2rem;margin-bottom:16px;">Scoring</div>
+                <div style="margin-bottom:12px;">Player 1 Score: <b>${score1}</b></div>
+                <div style="margin-bottom:12px;">Player 2 Score: <b>${score2}</b></div>
+                <div style="font-size:2rem;margin-bottom:18px;">${winnerText}</div>
+                <button id="close-score-overlay" style="font-size:1.2rem;padding:8px 24px;border-radius:8px;border:none;background:#f9f871;color:#8b0000;font-weight:bold;cursor:pointer;">Close</button>
+            </div>
+        `;
+        document.body.appendChild(overlay);
+        document.getElementById('close-score-overlay').onclick = () => {
+            overlay.remove();
+        };
+    }
+}
+
+// Simple confetti effect using canvas
+function launchConfetti() {
+    if (document.getElementById('confetti-canvas')) return; // Prevent multiple
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'confetti-canvas';
+    canvas.style.position = 'fixed';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.width = '100vw';
+    canvas.style.height = '100vh';
+    canvas.style.pointerEvents = 'none';
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    document.body.appendChild(canvas);
+
+    const ctx = canvas.getContext('2d');
+    const confetti = [];
+    const colors = ['#f9f871', '#db7d3d', '#8b0000', '#fff', '#00cfff', '#ff00c8'];
+
+    for (let i = 0; i < 120; i++) {
+        confetti.push({
+            x: Math.random() * canvas.width,
+            y: Math.random() * -canvas.height,
+            r: Math.random() * 8 + 4,
+            d: Math.random() * 40 + 10,
+            color: colors[Math.floor(Math.random() * colors.length)],
+            tilt: Math.random() * 10 - 10
+        });
+    }
+
+    let angle = 0;
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        angle += 0.01;
+        for (let i = 0; i < confetti.length; i++) {
+            let c = confetti[i];
+            ctx.beginPath();
+            ctx.lineWidth = c.r;
+            ctx.strokeStyle = c.color;
+            ctx.moveTo(c.x + c.tilt + Math.sin(angle + i), c.y);
+            ctx.lineTo(c.x + c.tilt, c.y + c.d);
+            ctx.stroke();
+        }
+        update();
+        requestAnimationFrame(draw);
+    }
+    function update() {
+        for (let i = 0; i < confetti.length; i++) {
+            let c = confetti[i];
+            c.y += Math.cos(angle + i) + 1 + c.r / 2;
+            c.x += Math.sin(angle) * 2;
+            if (c.y > canvas.height) {
+                c.x = Math.random() * canvas.width;
+                c.y = -10;
+            }
+        }
+    }
+    draw();
+
+    setTimeout(() => {
+        canvas.remove();
+    }, 4000);
+}
+function clearStackClickHandlers() {
+    const drawStack = document.getElementById('draw-stack');
+    const discardStack = document.getElementById('discard-stack');
+    if (drawStack) drawStack.onclick = null;
+    if (discardStack) discardStack.onclick = null;
+}
+function updatePhaseIndicator(gameState) {
+    const indicator = document.getElementById('phase-indicator');
+    if (!indicator) return;
+    let text = "Phase: ";
+    switch (gameState) {
+        case "startphase":
+            text += "Start Phase";
+            break;
+        case "player1Turn":
+            text += "Player 1's Turn";
+            break;
+        case "player2Turn":
+            text += "Player 2's Turn";
+            break;
+        case "caboCalled":
+            text += "CABO Called";
+            break;
+        case "scoring":
+            text += "Scoring";
+            break;
+        default:
+            text += gameState;
+    }
+    indicator.textContent = text;
+}
 
 
 
