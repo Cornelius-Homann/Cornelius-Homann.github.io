@@ -32,6 +32,8 @@ let currentPlayerRole = null; // Store the current player's role globally
 async function initializeGameRoom(roomCode) {
     unhighlightStacks(); // Unhighlight stacks on load
     flipAllCardsToBack(); // Flip all cards to back on load
+    unhighlightCards("player-1"); // Unhighlight player 1 cards on load
+    unhighlightCards("player-2"); // Unhighlight player 2 cards on load
     if (!roomCode) {
         console.error("initializeGameRoom: roomCode is required.");
         return false;
@@ -862,13 +864,21 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
 
             const currentCard = playerHand[cardIndex];
             playerHand[cardIndex] = takenCard;
+            
             discardStack.push(currentCard);
 
             await updateDoc(roomRef, {
                 [playerHandKey]: playerHand,
                 discardStack: discardStack
             });
-
+        // Animate the old card flying from the hand slot to the discard stack
+        await triggerCardAnimation({
+            from: `${player}-card${cardIndex + 1}`,
+            to: "discard-stack-img",
+            card: currentCard, // the card that was replaced
+            player: player,
+            type: "hand-to-discard"
+        });
             await clearPreviewCard();
             await updateDiscardStackDisplay(currentRoomCode);
             displayPlayerCards(currentRoomCode, player);
@@ -1276,6 +1286,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnResetRoom.addEventListener('click', async () => {
             console.log('Reset Room button clicked');
             if (confirm('Are you sure you want to reset the room?')) {
+                
                 await initializeGameRoom(currentRoomCode);
                 console.log('Room reset successfully');
                 updateDiscardStackDisplay(currentRoomCode); // Update discard stack display after reset
@@ -1512,22 +1523,31 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
     animCard.style.top = `${fromRect.top}px`;
     animCard.style.width = `${fromRect.width}px`;
     animCard.style.height = `${fromRect.height}px`;
-    animCard.style.transition = 'all 0.7s cubic-bezier(.5,1.2,.5,1)';
+    animCard.style.transition = 'all 0.7s cubic-bezier(.5,1.2,.5,1), transform 0.8s cubic-bezier(.5,1.2,.5,1)';
     animCard.style.zIndex = '100000';
     animCard.style.pointerEvents = 'none';
+    animCard.style.transform = 'scale(1)';
 
     animLayer.appendChild(animCard);
 
     // Force reflow for transition
     void animCard.offsetWidth;
 
-    // Move to destination
+    // Step 1: Move and enlarge
     animCard.style.left = `${toRect.left}px`;
     animCard.style.top = `${toRect.top}px`;
     animCard.style.width = `${toRect.width}px`;
     animCard.style.height = `${toRect.height}px`;
+    animCard.style.transform = 'scale(1.2)';
 
-    await new Promise(resolve => setTimeout(resolve, 700));
+    // Wait for most of the move duration
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Step 2: Shrink quickly at the end
+    animCard.style.transform = 'scale(1)';
+    animCard.style.transition = 'transform 0.25s cubic-bezier(.7,0,1,1)';
+
+    await new Promise(resolve => setTimeout(resolve, 180));
     animLayer.removeChild(animCard);
 }
 
