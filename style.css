@@ -256,3 +256,17 @@ html, body {
     top: 18px;
     left: 18px;
 }
+#animation-layer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    pointer-events: none;
+    z-index: 99999;
+}
+.animated-card {
+    position: fixed;
+    transition: all 0.7s cubic-bezier(.5,1.2,.5,1);
+    z-index: 100000;
+    will-change: left, top, width, height;
+    pointer-events: none;
+}

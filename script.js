@@ -486,6 +486,63 @@ function listenToDiscardStack(roomCode) {
         }
     });
 }
+
+function listenToAnimationEvents(roomCode) {
+    const roomRef = doc(db, 'gameRooms', roomCode);
+    let lastHandledTimestamp = 0;
+    onSnapshot(roomRef, (docSnap) => {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        const anim = data.lastAnimation;
+        if (!anim || anim.timestamp === lastHandledTimestamp) return;
+        lastHandledTimestamp = anim.timestamp;
+
+        // Find DOM elements
+        let fromElem, toElem;
+        if (anim.from === "draw-stack") fromElem = document.querySelector('#draw-stack img');
+        if (anim.from === "discard-stack") fromElem = document.querySelector('#discard-stack img');
+        if (anim.from === "preview-card-img") fromElem = document.getElementById('preview-card-img');
+        if (anim.from.startsWith("player-")) fromElem = document.querySelector(`#${anim.from} img`);
+        if (anim.to === "preview-card-img") toElem = document.getElementById('preview-card-img');
+        if (anim.to === "discard-stack-img") toElem = document.querySelector('#discard-stack img');
+        if (anim.to.startsWith("player-")) toElem = document.querySelector(`#${anim.to} img`);
+
+        // Determine card image to show
+        let cardImgSrc = `karten/${anim.card}.png`;
+        let showBackForOpponent = currentPlayerRole !== anim.player;
+
+        // Trigger the animation
+        triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent});
+    });
+}
+function listenToPreviewCard(roomCode) {
+    const roomRef = doc(db, 'gameRooms', roomCode);
+    onSnapshot(roomRef, (docSnap) => {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        const previewCard = data.previewCard;
+        const gameState = data.gameState;
+
+        // Determine if it's this player's turn
+        let isMyTurn = false;
+        if (
+            (gameState === "player1Turn" && currentPlayerRole === "player-1") ||
+            (gameState === "player2Turn" && currentPlayerRole === "player-2")
+        ) {
+            isMyTurn = true;
+        }
+
+        // Show back.png if not your turn and a card is present, else show face or empty
+        if (previewCard === null || previewCard === undefined) {
+            showPreviewCard(null);
+        } else if (isMyTurn) {
+            showPreviewCard(previewCard, false);
+        } else {
+            showPreviewCard(previewCard, true);
+        }
+    });
+}
+
 async function handleStartPhase() {
     console.log("Start phase initiated.");
 
@@ -547,9 +604,18 @@ async function handlePlayer1Turn(caboMode = false) {
                 if (cardTaken) return;
                 cardTaken = true;
                 const takenCard = await takeFromCardStack(currentRoomCode);
+
                 if (takenCard !== null && takenCard !== undefined) {
-                    showPreviewCard(takenCard);
+                    // --- Draw animation for player 1 (real-time for both players) ---
+                    await triggerCardAnimation({
+                        from: "draw-stack",
+                        to: "preview-card-img",
+                        card: takenCard,
+                        player: "player-1",
+                        type: "draw"
+                    });
                     await setPreviewCard(currentRoomCode, takenCard);
+
                     highlightCards("player-1");
                     await enableSwitchOrDiscard(takenCard, "player-1", async () => {
                         unhighlightCards("player-1");
@@ -572,7 +638,14 @@ async function handlePlayer1Turn(caboMode = false) {
                 cardTaken = true;
                 const takenCard = await takeFromDiscardStack(currentRoomCode);
                 if (takenCard !== null && takenCard !== undefined) {
-                    showPreviewCard(takenCard);
+                    // --- Discard stack to preview animation (real-time for both players) ---
+                    await triggerCardAnimation({
+                        from: "discard-stack",
+                        to: "preview-card-img",
+                        card: takenCard,
+                        player: "player-1",
+                        type: "take-discard"
+                    });
                     await setPreviewCard(currentRoomCode, takenCard);
                     updateDiscardStackDisplay(currentRoomCode);
                     highlightCards("player-1");
@@ -609,9 +682,18 @@ async function handlePlayer2Turn(caboMode = false) {
                 if (cardTaken) return;
                 cardTaken = true;
                 const takenCard = await takeFromCardStack(currentRoomCode);
+
                 if (takenCard !== null && takenCard !== undefined) {
-                    showPreviewCard(takenCard);
+                    // --- Draw animation for player 2 (real-time for both players) ---
+                    await triggerCardAnimation({
+                        from: "draw-stack",
+                        to: "preview-card-img",
+                        card: takenCard,
+                        player: "player-2",
+                        type: "draw"
+                    });
                     await setPreviewCard(currentRoomCode, takenCard);
+
                     highlightCards("player-2");
                     await enableSwitchOrDiscard(takenCard, "player-2", async () => {
                         unhighlightCards("player-2");
@@ -634,7 +716,14 @@ async function handlePlayer2Turn(caboMode = false) {
                 cardTaken = true;
                 const takenCard = await takeFromDiscardStack(currentRoomCode);
                 if (takenCard !== null && takenCard !== undefined) {
-                    showPreviewCard(takenCard);
+                    // --- Discard stack to preview animation (real-time for both players) ---
+                    await triggerCardAnimation({
+                        from: "discard-stack",
+                        to: "preview-card-img",
+                        card: takenCard,
+                        player: "player-2",
+                        type: "take-discard"
+                    });
                     await setPreviewCard(currentRoomCode, takenCard);
                     updateDiscardStackDisplay(currentRoomCode);
                     highlightCards("player-2");
@@ -695,6 +784,15 @@ async function handleScoringPhase() {
     await displayPlayerCards(currentRoomCode, "player-1", true);
     await displayPlayerCards(currentRoomCode, "player-2", true);
 
+    // Disable all interactions except reset
+    clearStackClickHandlers();
+    // Disable pointer events for stacks and cards
+    document.getElementById('draw-stack').style.pointerEvents = 'none';
+    document.getElementById('discard-stack').style.pointerEvents = 'none';
+    document.querySelectorAll('.card-slot img').forEach(img => {
+        img.style.pointerEvents = 'none';
+    });
+
     // Calculate scores based on player hands
     const player1Score = calculateScore(roomData.player1Hand);
     const player2Score = calculateScore(roomData.player2Hand);
@@ -747,6 +845,15 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
             }
             const cardIndex = parseInt(idMatch[1], 10) - 1;
 
+            // --- Animation: preview to hand slot (real-time for both players) ---
+            await triggerCardAnimation({
+                from: "preview-card-img",
+                to: `${player}-card${cardIndex + 1}`,
+                card: takenCard,
+                player: player,
+                type: "preview-to-hand"
+            });
+
             // Fetch latest hand/discard
             const roomSnap = await getDoc(roomRef);
             const roomData = roomSnap.data();
@@ -792,7 +899,13 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
                 const roomSnap = await getDoc(roomRef);
                 let discardStack = Array.isArray(roomSnap.data().discardStack) ? [...roomSnap.data().discardStack] : [];
                 discardStack.push(takenCard);
-
+                await triggerCardAnimation({
+                    from: "preview-card-img",
+                    to: "discard-stack-img",
+                    card: takenCard,
+                    player: player,
+                    type: "discard-preview"
+                });
                 await updateDoc(roomRef, { discardStack: discardStack });
                 await clearPreviewCard();
                 await updateDiscardStackDisplay(currentRoomCode);
@@ -1006,20 +1119,21 @@ function swap(player = currentPlayerRole, onComplete) {
     });
 }
 
-async function showPreviewCard(cardValue) {
+function showPreviewCard(cardValue, forceBack = false) {
     const previewImg = document.getElementById('preview-card-img');
+    if (!previewImg) return;
     if (cardValue === null || cardValue === undefined) {
         previewImg.src = 'karten/empty.png';
         previewImg.setAttribute('data-card', 'empty');
     } else {
-        previewImg.src = `karten/${cardValue}.png`;
+        previewImg.src = forceBack ? 'karten/back.png' : `karten/${cardValue}.png`;
         previewImg.setAttribute('data-card', cardValue);
     }
 }
 
 async function clearPreviewCard() {
     await setPreviewCard(currentRoomCode, null);
-    showPreviewCard(null); // Show empty card
+    
 }
 
 function highlightStacks(){
@@ -1068,20 +1182,7 @@ async function setPreviewCard(roomCode, cardValue) {
     const roomRef = doc(db, 'gameRooms', roomCode);
     await updateDoc(roomRef, { previewCard: cardValue });
 }
-async function restorePreviewCard(roomCode, currentGameState) {
-    if ((currentPlayerRole === "player-1" && currentGameState === "player1Turn") ||
-        (currentPlayerRole === "player-2" && currentGameState === "player2Turn")) {
-        const roomRef = doc(db, 'gameRooms', roomCode);
-        const roomSnap = await getDoc(roomRef);
-        if (roomSnap.exists()) {
-            const previewCard = roomSnap.data().previewCard;
-            showPreviewCard(previewCard);
-        }
-    } else {
-        console.log("Not the player's turn. Hiding preview card.");
-        showPreviewCard(null); // Hide preview card if not the player's turn
-    }
-}
+
 
 // Map currentPlayerRole to Firestore keys
 function mapPlayerRoleToFirestoreKey(playerRole) {
@@ -1121,8 +1222,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('phase-indicator').classList.remove('rotated');
     }
     updateDiscardStackDisplay(currentRoomCode); // Initial display
-    listenToDiscardStack(currentRoomCode);      // Real-time updates
 
+    // --- Attack Realtime Firebase Listeners ---
+    listenToDiscardStack(currentRoomCode);      // Real-time updates
+    listenToAnimationEvents(currentRoomCode); // Listen for animation events
+    listenToPreviewCard(currentRoomCode); // Listen for preview card changes
     // --- Attach Event Listeners ---
     const btnCabo = document.getElementById('btnCabo');
     if (btnCabo) {
@@ -1176,7 +1280,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 console.log('Room reset successfully');
                 updateDiscardStackDisplay(currentRoomCode); // Update discard stack display after reset
                 const currentGameState = (await getDoc(doc(db, 'gameRooms', currentRoomCode))).data().gameState;
-                restorePreviewCard(currentRoomCode, currentGameState); // Restore preview card after reset
+                
             }
         });
     }
@@ -1187,7 +1291,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- Display Player Cards ---
     await displayPlayerCards(currentRoomCode, currentPlayerRole);
     const currentGameState = (await getDoc(doc(db, 'gameRooms', currentRoomCode))).data().gameState;
-    restorePreviewCard(currentRoomCode, currentGameState); // Restore preview card if needed
+    
 
     console.log("Game initialization complete.");
    
@@ -1322,5 +1426,109 @@ function updatePhaseIndicator(gameState) {
     indicator.textContent = text;
 }
 
+/**
+ * Triggers a real-time card animation for both players.
+ * @param {Object} opts
+ * @param {string} opts.from - Animation source (e.g. "draw-stack", "discard-stack", "preview-card-img", or "player-1-card1")
+ * @param {string} opts.to - Animation destination (same format as above)
+ * @param {number} opts.card - Card value (number)
+ * @param {string} opts.player - "player-1" or "player-2" (the acting player)
+ * @param {string} [opts.type] - Optional, e.g. "draw", "discard", "swap"
+ * @returns {Promise<void>}
+ */
+async function triggerCardAnimation({from, to, card, player, type = ""}) {
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+    const timestamp = Date.now();
+
+    // Write the animation event to Firestore
+    await updateDoc(roomRef, {
+        lastAnimation: {
+            type,
+            from,
+            to,
+            card,
+            player,
+            timestamp
+        }
+    });
+
+    // Wait for the animation event to be handled locally
+    await new Promise(resolve => {
+        let unsub = onSnapshot(roomRef, (docSnap) => {
+            const data = docSnap.data();
+            if (
+                data.lastAnimation &&
+                data.lastAnimation.timestamp === timestamp &&
+                data.lastAnimation.from === from &&
+                data.lastAnimation.to === to &&
+                data.lastAnimation.card === card &&
+                data.lastAnimation.player === player
+            ) {
+                // Find DOM elements
+                let fromElem, toElem;
+                if (from === "draw-stack") fromElem = document.querySelector('#draw-stack img');
+                if (from === "discard-stack") fromElem = document.querySelector('#discard-stack img');
+                if (from === "preview-card-img") fromElem = document.getElementById('preview-card-img');
+                if (from.startsWith("player-")) fromElem = document.querySelector(`#${from} img`);
+                if (to === "preview-card-img") toElem = document.getElementById('preview-card-img');
+                if (to === "discard-stack-img") toElem = document.querySelector('#discard-stack img');
+                if (to.startsWith("player-")) toElem = document.querySelector(`#${to} img`);
+
+                // Determine card image to show
+                let cardImgSrc = `karten/${card}.png`;
+                let showBackForOpponent = currentPlayerRole !== player;
+
+                // Play the animation locally
+                triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent}).then(() => {
+                    unsub();
+                    resolve();
+                });
+            }
+        });
+    });
+}
+
+/**
+ * Animates a card image moving from one DOM element to another (local only).
+ * @param {Object} opts
+ * @param {HTMLElement} opts.fromElem - The element the card moves from (img).
+ * @param {HTMLElement} opts.toElem - The element the card moves to (img).
+ * @param {string} opts.cardImgSrc - The image source for the card.
+ * @param {boolean} [opts.showBackForOpponent=false] - If true, show back.png instead of the real card.
+ * @returns {Promise<void>}
+ */
+async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent = false}) {
+    const animLayer = document.getElementById('animation-layer');
+    if (!fromElem || !toElem || !animLayer) return;
+
+    const fromRect = fromElem.getBoundingClientRect();
+    const toRect = toElem.getBoundingClientRect();
+
+    const animCard = document.createElement('img');
+    animCard.src = showBackForOpponent ? 'karten/back.png' : cardImgSrc;
+    animCard.className = 'animated-card';
+    animCard.style.position = 'fixed';
+    animCard.style.left = `${fromRect.left}px`;
+    animCard.style.top = `${fromRect.top}px`;
+    animCard.style.width = `${fromRect.width}px`;
+    animCard.style.height = `${fromRect.height}px`;
+    animCard.style.transition = 'all 0.7s cubic-bezier(.5,1.2,.5,1)';
+    animCard.style.zIndex = '100000';
+    animCard.style.pointerEvents = 'none';
+
+    animLayer.appendChild(animCard);
+
+    // Force reflow for transition
+    void animCard.offsetWidth;
+
+    // Move to destination
+    animCard.style.left = `${toRect.left}px`;
+    animCard.style.top = `${toRect.top}px`;
+    animCard.style.width = `${toRect.width}px`;
+    animCard.style.height = `${toRect.height}px`;
+
+    await new Promise(resolve => setTimeout(resolve, 700));
+    animLayer.removeChild(animCard);
+}
 
 
