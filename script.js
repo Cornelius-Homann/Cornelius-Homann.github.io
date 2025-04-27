@@ -20,6 +20,7 @@ const db = getFirestore(app);
 // --- Global Variable ---
 let currentRoomCode = '1'; // Default room code, will be updated from URL
 let currentPlayerRole = null; // Store the current player's role globally
+let cardTaken = false;
 
 // --- Firestore Interaction Functions (Refactored for Rooms) ---
 
@@ -456,6 +457,10 @@ function listenToGameState(roomCode) {
         switch (gameState) {
             case "startphase":
                 console.log("Calling handleStartPhase...");
+                clearStackClickHandlers();
+                unhighlightCards("player-1");
+                unhighlightCards("player-2");
+                unhighlightStacks();
                 handleStartPhase();
                 break;
             case "player1Turn":
@@ -599,16 +604,17 @@ async function handlePlayer1Turn(caboMode = false) {
         highlightStacks();
         const drawStack = document.getElementById('draw-stack');
         const discardStack = document.getElementById('discard-stack');
-        let cardTaken = false;
 
         if (drawStack) {
             drawStack.onclick = async () => {
                 if (cardTaken) return;
-                cardTaken = true;
+                cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromCardStack(currentRoomCode);
 
                 if (takenCard !== null && takenCard !== undefined) {
-                    // --- Draw animation for player 1 (real-time for both players) ---
+                    clearStackClickHandlers(currentRoomCode);
+                    unhighlightStacks();
+                    highlightDiscardStack(); // Highlight discard stack for player 1
                     await triggerCardAnimation({
                         from: "draw-stack",
                         to: "preview-card-img",
@@ -622,7 +628,7 @@ async function handlePlayer1Turn(caboMode = false) {
                     await enableSwitchOrDiscard(takenCard, "player-1", async () => {
                         unhighlightCards("player-1");
                         unhighlightStacks();
-                        cardTaken = false;
+                        cardTaken = false; // Reset only after action is complete
                         if (caboMode) {
                             await setGameState("scoring");
                         } else {
@@ -637,10 +643,11 @@ async function handlePlayer1Turn(caboMode = false) {
         if (discardStack) {
             discardStack.onclick = async () => {
                 if (cardTaken) return;
-                cardTaken = true;
+                cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromDiscardStack(currentRoomCode);
                 if (takenCard !== null && takenCard !== undefined) {
-                    // --- Discard stack to preview animation (real-time for both players) ---
+                    clearStackClickHandlers(currentRoomCode);
+                    unhighlightStacks();
                     await triggerCardAnimation({
                         from: "discard-stack",
                         to: "preview-card-img",
@@ -654,7 +661,7 @@ async function handlePlayer1Turn(caboMode = false) {
                     await enableSwitchOrDiscard(takenCard, "player-1", async () => {
                         unhighlightCards("player-1");
                         unhighlightStacks();
-                        cardTaken = false;
+                        cardTaken = false; // Reset only after action is complete
                         if (caboMode) {
                             await setGameState("scoring");
                         } else {
@@ -677,16 +684,17 @@ async function handlePlayer2Turn(caboMode = false) {
         highlightStacks();
         const drawStack = document.getElementById('draw-stack');
         const discardStack = document.getElementById('discard-stack');
-        let cardTaken = false;
 
         if (drawStack) {
             drawStack.onclick = async () => {
                 if (cardTaken) return;
-                cardTaken = true;
+                cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromCardStack(currentRoomCode);
 
                 if (takenCard !== null && takenCard !== undefined) {
-                    // --- Draw animation for player 2 (real-time for both players) ---
+                    clearStackClickHandlers(currentRoomCode);
+                    unhighlightStacks();
+                    highlightDiscardStack(); // Highlight discard stack for player 2
                     await triggerCardAnimation({
                         from: "draw-stack",
                         to: "preview-card-img",
@@ -700,7 +708,7 @@ async function handlePlayer2Turn(caboMode = false) {
                     await enableSwitchOrDiscard(takenCard, "player-2", async () => {
                         unhighlightCards("player-2");
                         unhighlightStacks();
-                        cardTaken = false;
+                        cardTaken = false; // Reset only after action is complete
                         if (caboMode) {
                             await setGameState("scoring");
                         } else {
@@ -715,10 +723,11 @@ async function handlePlayer2Turn(caboMode = false) {
         if (discardStack) {
             discardStack.onclick = async () => {
                 if (cardTaken) return;
-                cardTaken = true;
+                cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromDiscardStack(currentRoomCode);
                 if (takenCard !== null && takenCard !== undefined) {
-                    // --- Discard stack to preview animation (real-time for both players) ---
+                    clearStackClickHandlers(currentRoomCode);
+                    unhighlightStacks();
                     await triggerCardAnimation({
                         from: "discard-stack",
                         to: "preview-card-img",
@@ -732,7 +741,7 @@ async function handlePlayer2Turn(caboMode = false) {
                     await enableSwitchOrDiscard(takenCard, "player-2", async () => {
                         unhighlightCards("player-2");
                         unhighlightStacks();
-                        cardTaken = false;
+                        cardTaken = false; // Reset only after action is complete
                         if (caboMode) {
                             await setGameState("scoring");
                         } else {
@@ -848,6 +857,8 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
             const cardIndex = parseInt(idMatch[1], 10) - 1;
 
             // --- Animation: preview to hand slot (real-time for both players) ---
+            clearStackClickHandlers(currentRoomCode);
+            unhighlightStacks();
             await triggerCardAnimation({
                 from: "preview-card-img",
                 to: `${player}-card${cardIndex + 1}`,
@@ -872,6 +883,7 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
                 discardStack: discardStack
             });
         // Animate the old card flying from the hand slot to the discard stack
+        clearStackClickHandlers(); // Prevent further clicks
         await triggerCardAnimation({
             from: `${player}-card${cardIndex + 1}`,
             to: "discard-stack-img",
@@ -909,6 +921,7 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
                 const roomSnap = await getDoc(roomRef);
                 let discardStack = Array.isArray(roomSnap.data().discardStack) ? [...roomSnap.data().discardStack] : [];
                 discardStack.push(takenCard);
+                clearStackClickHandlers(currentRoomCode); // Prevent further clicks
                 await triggerCardAnimation({
                     from: "preview-card-img",
                     to: "discard-stack-img",
@@ -1053,7 +1066,6 @@ function spy(player = currentPlayerRole, onComplete) {
 }
 
 function swap(player = currentPlayerRole, onComplete) {
-    // Determine opponent
     const opponent = player === "player-1" ? "player-2" : "player-1";
     const playerHandKey = player === "player-1" ? "player1Hand" : "player2Hand";
     const opponentHandKey = opponent === "player-1" ? "player1Hand" : "player2Hand";
@@ -1062,39 +1074,69 @@ function swap(player = currentPlayerRole, onComplete) {
     const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
     const opponentCardSlots = document.querySelectorAll(`.player.${opponent} .card-slot img`);
 
-    let selectedPlayerIdx = null;
-    let selectedOpponentIdx = null;
-
     // Step 1: Highlight only own cards for selection
     highlightCards(player);
-    unhighlightCards(opponent);
 
-    // Step 1: Select a card from the active player's hand
-    playerCardSlots.forEach((cardSlot, idx) => {
+    playerCardSlots.forEach((cardSlot) => {
         cardSlot.onclick = async () => {
-            if (selectedPlayerIdx !== null) return; // Only allow one selection
-            selectedPlayerIdx = idx;
+            // Extract the card index from the parent ID, e.g., "player-1-card4"
+            const idMatch = cardSlot.parentElement.id.match(/card(\d)$/);
+            if (!idMatch) {
+                console.error("Could not determine card index from ID:", cardSlot.parentElement.id);
+                return;
+            }
+            const playerIdx = parseInt(idMatch[1], 10) - 1;
 
-            // Highlight only the selected card
-            playerCardSlots.forEach((slot, i) => {
+            // Only allow one selection
+            playerCardSlots.forEach((slot) => {
                 slot.onclick = null;
-                slot.style.border = i === idx ? '2px solid orange' : '';
-                slot.style.borderRadius = i === idx ? '5px' : '';
+                slot.style.border = '';
+                slot.style.borderRadius = '';
             });
+            cardSlot.style.border = '2px solid orange';
+            cardSlot.style.borderRadius = '5px';
 
             // Step 2: Now highlight and allow selection of opponent's card
             highlightCards(opponent);
 
-            opponentCardSlots.forEach((oppSlot, oppIdx) => {
+            opponentCardSlots.forEach((oppSlot) => {
                 oppSlot.onclick = async () => {
-                    if (selectedOpponentIdx !== null) return;
-                    selectedOpponentIdx = oppIdx;
+                    const oppIdMatch = oppSlot.parentElement.id.match(/card(\d)$/);
+                    if (!oppIdMatch) {
+                        console.error("Could not determine opponent card index from ID:", oppSlot.parentElement.id);
+                        return;
+                    }
+                    const oppIdx = parseInt(oppIdMatch[1], 10) - 1;
 
-                    // Highlight only the selected opponent card
-                    opponentCardSlots.forEach((slot, i) => {
+                    // Only allow one selection
+                    opponentCardSlots.forEach((slot) => {
                         slot.onclick = null;
-                        slot.style.border = i === oppIdx ? '2px solid orange' : '';
-                        slot.style.borderRadius = i === oppIdx ? '5px' : '';
+                        slot.style.border = '';
+                        slot.style.borderRadius = '';
+                    });
+                    oppSlot.style.border = '2px solid orange';
+                    oppSlot.style.borderRadius = '5px';
+
+                    // Remove highlights and handlers
+                    unhighlightCards(player);
+                    unhighlightCards(opponent);
+
+                    // Animate the swap: both cards move, both show back.png for both players
+                    await triggerCardAnimation({
+                        from: `${player}-card${playerIdx + 1}`,
+                        to: `${opponent}-card${oppIdx + 1}`,
+                        card: 0,
+                        player: player,
+                        type: "swap",
+                        forceBack: true
+                    });
+                    await triggerCardAnimation({
+                        from: `${opponent}-card${oppIdx + 1}`,
+                        to: `${player}-card${playerIdx + 1}`,
+                        card: 0,
+                        player: player,
+                        type: "swap",
+                        forceBack: true
                     });
 
                     // Swap the cards in Firestore
@@ -1104,9 +1146,9 @@ function swap(player = currentPlayerRole, onComplete) {
                     const opponentHand = [...roomData[opponentHandKey]];
 
                     // Swap the selected cards
-                    const temp = playerHand[selectedPlayerIdx];
-                    playerHand[selectedPlayerIdx] = opponentHand[selectedOpponentIdx];
-                    opponentHand[selectedOpponentIdx] = temp;
+                    const temp = playerHand[playerIdx];
+                    playerHand[playerIdx] = opponentHand[oppIdx];
+                    opponentHand[oppIdx] = temp;
 
                     await updateDoc(roomRef, {
                         [playerHandKey]: playerHand,
@@ -1116,10 +1158,6 @@ function swap(player = currentPlayerRole, onComplete) {
                     // Update UI
                     await displayPlayerCards(currentRoomCode, player);
                     await displayPlayerCards(currentRoomCode, opponent);
-
-                    // Remove highlights and handlers
-                    unhighlightCards(player);
-                    unhighlightCards(opponent);
 
                     // End turn
                     if (onComplete) onComplete();
@@ -1447,7 +1485,7 @@ function updatePhaseIndicator(gameState) {
  * @param {string} [opts.type] - Optional, e.g. "draw", "discard", "swap"
  * @returns {Promise<void>}
  */
-async function triggerCardAnimation({from, to, card, player, type = ""}) {
+async function triggerCardAnimation({from, to, card, player, type = "", forceBack = false}) {
     const roomRef = doc(db, 'gameRooms', currentRoomCode);
     const timestamp = Date.now();
 
@@ -1459,7 +1497,8 @@ async function triggerCardAnimation({from, to, card, player, type = ""}) {
             to,
             card,
             player,
-            timestamp
+            timestamp,
+            forceBack // <-- Add this line to Firestore event
         }
     });
 
@@ -1467,13 +1506,14 @@ async function triggerCardAnimation({from, to, card, player, type = ""}) {
     await new Promise(resolve => {
         let unsub = onSnapshot(roomRef, (docSnap) => {
             const data = docSnap.data();
+            const anim = data.lastAnimation;
             if (
-                data.lastAnimation &&
-                data.lastAnimation.timestamp === timestamp &&
-                data.lastAnimation.from === from &&
-                data.lastAnimation.to === to &&
-                data.lastAnimation.card === card &&
-                data.lastAnimation.player === player
+                anim &&
+                anim.timestamp === timestamp &&
+                anim.from === from &&
+                anim.to === to &&
+                anim.card === card &&
+                anim.player === player
             ) {
                 // Find DOM elements
                 let fromElem, toElem;
@@ -1489,8 +1529,15 @@ async function triggerCardAnimation({from, to, card, player, type = ""}) {
                 let cardImgSrc = `karten/${card}.png`;
                 let showBackForOpponent = currentPlayerRole !== player;
 
-                // Play the animation locally
-                triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent}).then(() => {
+                // Play the animation locally, now passing type and forceBack!
+                triggerCardAnimationLocal({
+                    fromElem,
+                    toElem,
+                    cardImgSrc,
+                    showBackForOpponent,
+                    type: anim.type,
+                    forceBack: !!anim.forceBack // <-- Pass forceBack to local animation
+                }).then(() => {
                     unsub();
                     resolve();
                 });
@@ -1499,16 +1546,7 @@ async function triggerCardAnimation({from, to, card, player, type = ""}) {
     });
 }
 
-/**
- * Animates a card image moving from one DOM element to another (local only).
- * @param {Object} opts
- * @param {HTMLElement} opts.fromElem - The element the card moves from (img).
- * @param {HTMLElement} opts.toElem - The element the card moves to (img).
- * @param {string} opts.cardImgSrc - The image source for the card.
- * @param {boolean} [opts.showBackForOpponent=false] - If true, show back.png instead of the real card.
- * @returns {Promise<void>}
- */
-async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent = false}) {
+async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent = false, type = "", forceBack = false}) {
     const animLayer = document.getElementById('animation-layer');
     if (!fromElem || !toElem || !animLayer) return;
 
@@ -1516,14 +1554,17 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
     const toRect = toElem.getBoundingClientRect();
 
     const animCard = document.createElement('img');
-    animCard.src = showBackForOpponent ? 'karten/back.png' : cardImgSrc;
+    // Always show back.png for swap
+    const useBack = forceBack || type === "swap" || showBackForOpponent;
+    animCard.src = useBack ? 'karten/back.png' : cardImgSrc;
     animCard.className = 'animated-card';
     animCard.style.position = 'fixed';
     animCard.style.left = `${fromRect.left}px`;
     animCard.style.top = `${fromRect.top}px`;
     animCard.style.width = `${fromRect.width}px`;
     animCard.style.height = `${fromRect.height}px`;
-    animCard.style.transition = 'all 0.7s cubic-bezier(.5,1.2,.5,1), transform 0.8s cubic-bezier(.5,1.2,.5,1)';
+    // Slow and visible animation
+    animCard.style.transition = 'all 1.5s cubic-bezier(.5,1.2,.5,1), transform 1.5s cubic-bezier(.5,1.2,.5,1)';
     animCard.style.zIndex = '100000';
     animCard.style.pointerEvents = 'none';
     animCard.style.transform = 'scale(1)';
@@ -1533,7 +1574,7 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
     // Force reflow for transition
     void animCard.offsetWidth;
 
-    // Step 1: Move and enlarge
+    // Move and enlarge
     animCard.style.left = `${toRect.left}px`;
     animCard.style.top = `${toRect.top}px`;
     animCard.style.width = `${toRect.width}px`;
@@ -1541,13 +1582,13 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
     animCard.style.transform = 'scale(1.2)';
 
     // Wait for most of the move duration
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 1200));
 
-    // Step 2: Shrink quickly at the end
+    // Shrink quickly at the end
     animCard.style.transform = 'scale(1)';
-    animCard.style.transition = 'transform 0.25s cubic-bezier(.7,0,1,1)';
+    animCard.style.transition = 'transform 0.3s cubic-bezier(.7,0,1,1)';
 
-    await new Promise(resolve => setTimeout(resolve, 180));
+    await new Promise(resolve => setTimeout(resolve, 300));
     animLayer.removeChild(animCard);
 }
 
