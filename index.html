@@ -28,6 +28,28 @@
             <img src="karten/2.png" alt="Card 2">
             <img src="karten/3.png" alt="Card 3">
         </div>
+
+        <!-- Rules Button -->
+<button id="rulesBtn" class="rules-btn">📖 Regeln / Rules</button>
+
+<!-- Rules Modal -->
+<div id="rulesModal" class="rules-modal">
+    <div class="rules-modal-content">
+        <div class="rules-modal-header">
+            <span id="closeRules" class="close">&times;</span>
+            <button id="langDe" class="flag-btn" title="Deutsch" aria-label="Deutsch">
+                <!-- Germany SVG -->
+                <svg width="28" height="20" viewBox="0 0 28 20"><rect width="28" height="20" fill="#fff"/><rect y="13.33" width="28" height="6.67" fill="#ffce00"/><rect y="6.67" width="28" height="6.67" fill="#dd0000"/><rect width="28" height="6.67" fill="#000"/></svg>
+            </button>
+            <button id="langEn" class="flag-btn" title="English" aria-label="English">
+                <!-- UK SVG -->
+                <svg width="28" height="20" viewBox="0 0 28 20"><rect width="28" height="20" fill="#012169"/><polygon points="0,0 28,20 28,17.5 5,0" fill="#fff"/><polygon points="28,0 0,20 0,17.5 23,0" fill="#fff"/><polygon points="0,0 28,20 25.5,20 0,2.5" fill="#c8102e"/><polygon points="28,0 0,20 2.5,20 28,2.5" fill="#c8102e"/><rect x="11.2" width="5.6" height="20" fill="#fff"/><rect y="7.2" width="28" height="5.6" fill="#fff"/><rect x="12.4" width="3.2" height="20" fill="#c8102e"/><rect y="8.4" width="28" height="3.2" fill="#c8102e"/></svg>
+            </button>
+        </div>
+        <div id="rulesContent" class="rules-content"></div>
+    </div>
+</div>
+
     </div>
 </body>
 </html>

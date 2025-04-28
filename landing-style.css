@@ -99,3 +99,105 @@ button:hover {
 .image-container img:hover {
     transform: rotate(5deg) scale(1.1); /* Slight rotation and zoom on hover */
 }
+
+.rules-btn {
+    margin-top: 20px;
+    padding: 10px 24px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #8b0000;
+    background: #f9f871;
+    border: 2px solid #db7d3d;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.2s, color 0.2s, transform 0.2s;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+.rules-btn:hover {
+    background: #db7d3d;
+    color: #fffbe7;
+    transform: scale(1.05);
+}
+
+.rules-modal {
+    display: none;
+    position: fixed;
+    z-index: 10001;
+    left: 0; top: 0;
+    width: 100vw; height: 100vh;
+    background: rgba(0,0,0,0.6);
+    justify-content: center;
+    align-items: center;
+}
+.rules-modal-content {
+    background: #fffbe7;
+    color: #222;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 95%;
+    padding: 24px 20px 20px 20px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    position: relative;
+    font-size: 1rem;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+.rules-modal-header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+.close {
+    font-size: 2rem;
+    font-weight: bold;
+    color: #db7d3d;
+    cursor: pointer;
+    margin-right: auto;
+}
+.flag-btn {
+    background: none;
+    border: none;
+    font-size: 1.1rem;
+    padding: 2px 1px;    /* less horizontal padding */
+    cursor: pointer;
+    transition: transform 0.2s;
+    line-height: 1;
+    margin-top: 0px; /* no margin */
+    margin-left: 8px; /* space between flag and text */
+    margin-right: 8px;
+    margin-bottom: 0px; /* no margin */
+}
+.flag-btn:hover {
+    transform: scale(1.1); /* slightly less zoom */
+
+}
+.flag-btn svg {
+    vertical-align: middle;
+    border-radius: 3px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08);
+    width: 22px;
+    height: 16px;
+}
+.rules-content {
+    text-align: left;
+    color: #222;
+}
+.rules-content h2, .rules-content h3 {
+    color: #8b0000;
+    margin-top: 1em;
+}
+.rules-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+}
+.rules-content th, .rules-content td {
+    border: 1px solid #db7d3d;
+    padding: 6px 8px;
+    text-align: left;
+}
+.rules-content th {
+    background: #f9f871;
+}
