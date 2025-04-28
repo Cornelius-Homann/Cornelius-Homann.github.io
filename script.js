@@ -1498,7 +1498,7 @@ async function triggerCardAnimation({from, to, card, player, type = "", forceBac
             card,
             player,
             timestamp,
-            forceBack // <-- Add this line to Firestore event
+            forceBack // <-- Add this!
         }
     });
 
@@ -1526,27 +1526,25 @@ async function triggerCardAnimation({from, to, card, player, type = "", forceBac
                 if (to.startsWith("player-")) toElem = document.querySelector(`#${to} img`);
 
                 // Determine card image to show
-                let cardImgSrc = `karten/${card}.png`;
-                let showBackForOpponent = currentPlayerRole !== player;
+                let cardImgSrc = `karten/${anim.card}.png`;
+                let showBackForOpponent = currentPlayerRole !== anim.player;
 
-                // Play the animation locally, now passing type and forceBack!
-                triggerCardAnimationLocal({
-                    fromElem,
-                    toElem,
-                    cardImgSrc,
-                    showBackForOpponent,
-                    type: anim.type,
-                    forceBack: !!anim.forceBack // <-- Pass forceBack to local animation
-                }).then(() => {
-                    unsub();
-                    resolve();
-                });
+                
+                unsub();
+                resolve();
             }
         });
     });
 }
 
-async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent = false, type = "", forceBack = false}) {
+async function triggerCardAnimationLocal({
+    fromElem,
+    toElem,
+    cardImgSrc,
+    showBackForOpponent = false,
+    type = "",
+    forceBack = false
+}) {
     const animLayer = document.getElementById('animation-layer');
     if (!fromElem || !toElem || !animLayer) return;
 
@@ -1554,7 +1552,6 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
     const toRect = toElem.getBoundingClientRect();
 
     const animCard = document.createElement('img');
-    // Always show back.png for swap
     const useBack = forceBack || type === "swap" || showBackForOpponent;
     animCard.src = useBack ? 'karten/back.png' : cardImgSrc;
     animCard.className = 'animated-card';
@@ -1563,11 +1560,35 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
     animCard.style.top = `${fromRect.top}px`;
     animCard.style.width = `${fromRect.width}px`;
     animCard.style.height = `${fromRect.height}px`;
-    // Slow and visible animation
     animCard.style.transition = 'all 1.5s cubic-bezier(.5,1.2,.5,1), transform 1.5s cubic-bezier(.5,1.2,.5,1)';
     animCard.style.zIndex = '100000';
     animCard.style.pointerEvents = 'none';
     animCard.style.transform = 'scale(1)';
+
+    // --- For the active player, set the underlying slot to back.png during the animation ---
+    let restoreToElemSrc = null;
+    let restoreFromElemSrc = null;
+
+    // Always set preview or hand slot to back.png for the active player during animation
+    if (
+        (toElem.id === "preview-card-img" ||
+         (toElem.closest('.card-slot') && toElem.closest('.player'))) &&
+        !showBackForOpponent
+    ) {
+        restoreToElemSrc = toElem.src;
+        toElem.src = 'karten/back.png';
+    }
+
+    // For swap, also set the fromElem to back.png for active player
+    if (
+        type === "swap" &&
+        fromElem.closest('.card-slot') &&
+        fromElem.closest('.player') &&
+        !showBackForOpponent
+    ) {
+        restoreFromElemSrc = fromElem.src;
+        fromElem.src = 'karten/back.png';
+    }
 
     animLayer.appendChild(animCard);
 
@@ -1590,6 +1611,7 @@ async function triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBack
 
     await new Promise(resolve => setTimeout(resolve, 300));
     animLayer.removeChild(animCard);
+
+    // Restore the underlying images
+    
 }
-
-
