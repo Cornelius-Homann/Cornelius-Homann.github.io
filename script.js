@@ -93,12 +93,14 @@ function generateRoomData() {
         discardStack: discardStack,
         player1Hand: player1Hand,
         player2Hand: player2Hand,
+        player1Punish: [], 
+        player2Punish: [], 
         gameState: "startphase",
         caboPressed: {
             player1: false,
             player2: false
         },
-        previewCard: null // <-- Add this line
+        previewCard: null
     };
 }
 
@@ -365,22 +367,26 @@ async function displayPlayerCards(roomCode, playerRole, revealAll = false) {
             return;
         }
 
-        // Select the card slots for the current player
         const playerCardSlots = document.querySelectorAll(`.player.${playerRole} .card-slot img`);
-
         if (playerCardSlots.length !== 4) {
             console.error(`Room ${roomCode}: Found ${playerCardSlots.length} card slots for ${playerRole}, expected 4.`);
             return;
         }
 
-        // Show card faces if revealAll, otherwise show backs
-        playerCardSlots.forEach((imgElement, index) => {
-            if (revealAll) {
-                imgElement.src = `karten/${playerHandData[index]}.png`;
+        playerCardSlots.forEach((imgElement, domIdx) => {
+            let handIdx = domIdx;
+            if (playerRole === "player-1") handIdx = 3 - domIdx;
+            const cardValue = playerHandData[handIdx];
+            if (cardValue === null || cardValue === undefined) {
+                imgElement.src = "karten/empty.png";
+                imgElement.setAttribute("data-card", "empty");
+            } else if (revealAll) {
+                imgElement.src = `karten/${cardValue}.png`;
+                imgElement.setAttribute("data-card", cardValue);
             } else {
                 imgElement.src = "karten/back.png";
+                imgElement.setAttribute("data-card", cardValue);
             }
-            imgElement.setAttribute("data-card", playerHandData[index]);
         });
 
         console.log(`Room ${roomCode}: Initialized cards for ${playerRole}.`);
@@ -388,8 +394,60 @@ async function displayPlayerCards(roomCode, playerRole, revealAll = false) {
         console.error(`Room ${roomCode}: Error displaying cards for ${playerRole}:`, error);
     }
 }
+async function addPunishmentCard(player, cardValue) {
+    const punishKey = player === "player-1" ? "player1Punish" : "player2Punish";
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
 
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const punishArr = Array.isArray(roomSnap.data()[punishKey]) ? [...roomSnap.data()[punishKey]] : [];
+    if (punishArr.length >= 2) return; // Only 2 slots
 
+    punishArr.push(cardValue);
+    await updateDoc(roomRef, { [punishKey]: punishArr });
+}
+async function removePunishmentCard(player, index) {
+    const punishKey = player === "player-1" ? "player1Punish" : "player2Punish";
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const punishArr = Array.isArray(roomSnap.data()[punishKey]) ? [...roomSnap.data()[punishKey]] : [];
+    if (index < 0 || index >= punishArr.length) return;
+
+    punishArr.splice(index, 1);
+    await updateDoc(roomRef, { [punishKey]: punishArr });
+}
+async function displayPunishmentCards(player) {
+    const punishKey = player === "player-1" ? "player1Punish" : "player2Punish";
+    const leftSlot = document.querySelector(`#${player}-punish-left img`);
+    const rightSlot = document.querySelector(`#${player}-punish-right img`);
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const punishArr = Array.isArray(roomSnap.data()[punishKey]) ? roomSnap.data()[punishKey] : [];
+
+    // Show cards or empty
+    if (leftSlot) {
+        if (punishArr[0] !== undefined) {
+            leftSlot.src = `karten/${punishArr[0]}.png`;
+            leftSlot.setAttribute('data-card', punishArr[0]);
+        } else {
+            leftSlot.src = "karten/empty.png";
+            leftSlot.setAttribute('data-card', "empty");
+        }
+    }
+    if (rightSlot) {
+        if (punishArr[1] !== undefined) {
+            rightSlot.src = `karten/${punishArr[1]}.png`;
+            rightSlot.setAttribute('data-card', punishArr[1]);
+        } else {
+            rightSlot.src = "karten/empty.png";
+            rightSlot.setAttribute('data-card', "empty");
+        }
+    }
+}
 
 /**
  * Sets the gameState variable for the current room in Firestore.
@@ -549,7 +607,14 @@ function listenToPreviewCard(roomCode) {
         }
     });
 }
-
+function listenToPunishmentCards(roomCode) {
+    const roomRef = doc(db, 'gameRooms', roomCode);
+    onSnapshot(roomRef, (docSnap) => {
+        if (!docSnap.exists()) return;
+        displayPunishmentCards("player-1");
+        displayPunishmentCards("player-2");
+    });
+}
 async function handleStartPhase() {
     console.log("Start phase initiated.");
 
@@ -594,12 +659,29 @@ async function handleStartPhase() {
     } else {
         console.error(`Card slots for ${currentPlayerRole} not found.`);
     }
+    await setThrowToDiscard(true); // Add the third card to discard stack
+}
+function listenToThrowToDiscard(roomCode) {
+    const roomRef = doc(db, 'gameRooms', roomCode);
+    onSnapshot(roomRef, (docSnap) => {
+        if (!docSnap.exists()) return;
+        const data = docSnap.data();
+        if (data.throwToDiscard) {
+            enableThrowToDiscard("player-1");
+            enableThrowToDiscard("player-2");
+        } else {
+            unhighlightThrowCards("player-1");
+            unhighlightThrowCards("player-2");
+            // Optionally: remove click handlers from all cards here
+        }
+    });
 }
 // --- Update handlePlayer1Turn and handlePlayer2Turn to enforce correct turn flow ---
 async function handlePlayer1Turn(caboMode = false) {
     flipAllCardsToBack();
     clearStackClickHandlers(); // Prevent other player from interacting
-
+    await setThrowToDiscard(true);
+    
     if (currentPlayerRole === "player-1") {
         highlightStacks();
         const drawStack = document.getElementById('draw-stack');
@@ -608,6 +690,7 @@ async function handlePlayer1Turn(caboMode = false) {
         if (drawStack) {
             drawStack.onclick = async () => {
                 if (cardTaken) return;
+                await setThrowToDiscard(false); 
                 cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromCardStack(currentRoomCode);
 
@@ -629,6 +712,7 @@ async function handlePlayer1Turn(caboMode = false) {
                         unhighlightCards("player-1");
                         unhighlightStacks();
                         cardTaken = false; // Reset only after action is complete
+                        await setThrowToDiscard(true); 
                         if (caboMode) {
                             await setGameState("scoring");
                         } else {
@@ -643,6 +727,7 @@ async function handlePlayer1Turn(caboMode = false) {
         if (discardStack) {
             discardStack.onclick = async () => {
                 if (cardTaken) return;
+                await setThrowToDiscard(false);
                 cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromDiscardStack(currentRoomCode);
                 if (takenCard !== null && takenCard !== undefined) {
@@ -662,6 +747,7 @@ async function handlePlayer1Turn(caboMode = false) {
                         unhighlightCards("player-1");
                         unhighlightStacks();
                         cardTaken = false; // Reset only after action is complete
+                        await setThrowToDiscard(true);
                         if (caboMode) {
                             await setGameState("scoring");
                         } else {
@@ -679,6 +765,7 @@ async function handlePlayer1Turn(caboMode = false) {
 async function handlePlayer2Turn(caboMode = false) {
     flipAllCardsToBack();
     clearStackClickHandlers(); // Prevent other player from interacting
+    await setThrowToDiscard(true);
 
     if (currentPlayerRole === "player-2") {
         highlightStacks();
@@ -688,6 +775,7 @@ async function handlePlayer2Turn(caboMode = false) {
         if (drawStack) {
             drawStack.onclick = async () => {
                 if (cardTaken) return;
+                await setThrowToDiscard(false);
                 cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromCardStack(currentRoomCode);
 
@@ -708,6 +796,7 @@ async function handlePlayer2Turn(caboMode = false) {
                     await enableSwitchOrDiscard(takenCard, "player-2", async () => {
                         unhighlightCards("player-2");
                         unhighlightStacks();
+                        await setThrowToDiscard(true);
                         cardTaken = false; // Reset only after action is complete
                         if (caboMode) {
                             await setGameState("scoring");
@@ -723,6 +812,7 @@ async function handlePlayer2Turn(caboMode = false) {
         if (discardStack) {
             discardStack.onclick = async () => {
                 if (cardTaken) return;
+                await setThrowToDiscard(false);
                 cardTaken = true; // Set immediately on click
                 const takenCard = await takeFromDiscardStack(currentRoomCode);
                 if (takenCard !== null && takenCard !== undefined) {
@@ -741,6 +831,7 @@ async function handlePlayer2Turn(caboMode = false) {
                     await enableSwitchOrDiscard(takenCard, "player-2", async () => {
                         unhighlightCards("player-2");
                         unhighlightStacks();
+                        await setThrowToDiscard(true);
                         cardTaken = false; // Reset only after action is complete
                         if (caboMode) {
                             await setGameState("scoring");
@@ -826,11 +917,9 @@ async function handleScoringPhase() {
 }
 
 function calculateScore(playerHand) {
-    // If playerHand is not an array or has wrong length, return 0
     if (!Array.isArray(playerHand) || playerHand.length !== 4) {
         return 0;
     }
-    // Sum up the values of the cards in the hand
     return playerHand.reduce((sum, card) => sum + (typeof card === "number" ? card : 0), 0);
 }
 
@@ -1225,6 +1314,23 @@ function flipAllCardsToBack() {
         img.src = 'karten/back.png';
     });
 }
+function highlightThrowCards(player) {
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    playerCardSlots.forEach((img) => {
+        img.style.boxShadow = '0 0 10px 2px #00cfff88';
+        img.style.border = '2px solid #00cfff';
+        img.style.borderRadius = '6px';
+    });
+}
+function unhighlightThrowCards(player) {
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    playerCardSlots.forEach((img) => {
+        img.style.boxShadow = '';
+        img.style.border = '';
+        img.style.borderRadius = '';
+        img.onclick = null; // Remove click handler
+    });
+}
 async function setPreviewCard(roomCode, cardValue) {
     if (!roomCode) return;
     const roomRef = doc(db, 'gameRooms', roomCode);
@@ -1275,6 +1381,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     listenToDiscardStack(currentRoomCode);      // Real-time updates
     listenToAnimationEvents(currentRoomCode); // Listen for animation events
     listenToPreviewCard(currentRoomCode); // Listen for preview card changes
+    listenToPunishmentCards(currentRoomCode); // Listen for punishment cards
+    listenToThrowToDiscard(currentRoomCode); // Listen for throw to discard
     // --- Attach Event Listeners ---
     const btnCabo = document.getElementById('btnCabo');
     if (btnCabo) {
@@ -1488,7 +1596,7 @@ function updatePhaseIndicator(gameState) {
 async function triggerCardAnimation({from, to, card, player, type = "", forceBack = false}) {
     const roomRef = doc(db, 'gameRooms', currentRoomCode);
     const timestamp = Date.now();
-
+    
     // Write the animation event to Firestore
     await updateDoc(roomRef, {
         lastAnimation: {
@@ -1614,4 +1722,109 @@ async function triggerCardAnimationLocal({
 
     // Restore the underlying images
     
+}
+
+async function enableThrowToDiscard(player) {
+    // Only allow throw for the current player's own hand
+    if (player !== currentPlayerRole) return;
+
+    // Allowed phases
+    const allowedPhases = ["startphase", "player1Turn", "player2Turn", "caboCalled"];
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+
+    const roomSnap = await getDoc(roomRef);
+    if (!roomSnap.exists()) return;
+    const roomData = roomSnap.data();
+    if (!allowedPhases.includes(roomData.gameState)) return;
+
+    const playerHandKey = player === "player-1" ? "player1Hand" : "player2Hand";
+    const punishKey = player === "player-1" ? "player1Punish" : "player2Punish";
+    const caboPressedKey = player === "player-1" ? "player1" : "player2";
+    const playerHand = roomData[playerHandKey];
+    const punishArr = Array.isArray(roomData[punishKey]) ? roomData[punishKey] : [];
+    const discardStack = roomData.discardStack || [];
+    const topDiscard = discardStack.length > 0 ? discardStack[discardStack.length - 1] : null;
+    const caboPressed = roomData.caboPressed && roomData.caboPressed[caboPressedKey];
+
+    if (punishArr.length >= 2 && caboPressed) {
+        showGameMessage("You cannot throw more cards after 2 punishment cards and CABO.", "orange");
+        return;
+    }
+
+    highlightThrowCards(player);
+
+    const playerCardSlots = document.querySelectorAll(`.player.${player} .card-slot img`);
+    playerCardSlots.forEach((cardSlot, idx) => {
+        cardSlot.onclick = async () => {
+            const cardValue = playerHand[idx];
+            if (cardValue === null || cardValue === undefined) return;
+            unhighlightThrowCards(player);
+
+            const nonEmptyCount = playerHand.filter(card => card !== null && card !== undefined).length;
+            if (cardValue === topDiscard && nonEmptyCount > 3) {
+                await triggerCardAnimation({
+                    from: `${player}-card${idx + 1}`,
+                    to: "discard-stack-img",
+                    card: cardValue,
+                    player: player,
+                    type: "throw-to-discard"
+                });
+
+                const newHand = [...playerHand];
+                newHand[idx] = null;
+                const newDiscard = [...discardStack, cardValue];
+                await updateDoc(roomRef, {
+                    [playerHandKey]: newHand,
+                    discardStack: newDiscard
+                });
+                await displayPlayerCards(currentRoomCode, player);
+                await updateDiscardStackDisplay(currentRoomCode);
+
+                const updatedSnap = await getDoc(roomRef);
+                const updatedHand = updatedSnap.data()[playerHandKey];
+                const updatedNonEmpty = updatedHand.filter(card => card !== null && card !== undefined).length;
+                if (updatedHand && updatedNonEmpty > 0) {
+                    enableThrowToDiscard(player);
+                }
+            } else {
+                // Punishment logic
+                if (punishArr.length >= 2) {
+                    await setGameState("caboCalled");
+                    showGameMessage("You have 2 punishment cards! CABO called automatically.", "orange");
+                } else {
+                    const drawn = await takeFromCardStack(currentRoomCode);
+                    if (drawn !== null && drawn !== undefined) {
+                        await addPunishmentCard(player, drawn);
+                        await displayPunishmentCards(player);
+                        showGameMessage("No match! You received a punishment card.", "red");
+                    }
+                }
+            }
+        };
+    });
+}
+
+async function setThrowToDiscard(enabled) {
+    if (!currentRoomCode) return;
+    const roomRef = doc(db, 'gameRooms', currentRoomCode);
+    await updateDoc(roomRef, { throwToDiscard: !!enabled });
+}
+
+function showGameMessage(msg, color = "red") {
+    let msgDiv = document.getElementById('game-message');
+    if (!msgDiv) {
+        msgDiv = document.createElement('div');
+        msgDiv.id = 'game-message';
+        msgDiv.style.position = 'fixed';
+        msgDiv.style.top = '10px';
+        msgDiv.style.left = '50%';
+        msgDiv.style.transform = 'translateX(-50%)';
+        msgDiv.style.zIndex = '99999';
+        msgDiv.style.fontSize = '1.2rem';
+        msgDiv.style.fontWeight = 'bold';
+        document.body.appendChild(msgDiv);
+    }
+    msgDiv.textContent = msg;
+    msgDiv.style.color = color;
+    setTimeout(() => { msgDiv.textContent = ""; }, 2000);
 }
