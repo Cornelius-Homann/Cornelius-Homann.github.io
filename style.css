@@ -54,10 +54,12 @@ html, body {
     
 }
 
-/* --- ADD ROTATION FOR PLAYER 1 CARDS --- */
-/* Rotate Player 1's cards by default */
-.player-1 img {
+
+.player.player-1 {
     transform: rotate(180deg);
+}
+.player.player-1 img {
+    transform: rotate(0deg);
 }
 
 /* --- REMOVE ROTATION FOR PLAYER 2 CARDS --- */

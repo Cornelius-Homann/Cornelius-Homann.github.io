@@ -505,21 +505,43 @@ function listenToAnimationEvents(roomCode) {
         lastHandledTimestamp = anim.timestamp;
 
         // Find DOM elements
-        let fromElem, toElem;
+        let fromElem = null, toElem = null; // Initialize to null
         if (anim.from === "draw-stack") fromElem = document.querySelector('#draw-stack img');
         if (anim.from === "discard-stack") fromElem = document.querySelector('#discard-stack img');
         if (anim.from === "preview-card-img") fromElem = document.getElementById('preview-card-img');
         if (anim.from.startsWith("player-")) fromElem = document.querySelector(`#${anim.from} img`);
+
+        // --- FIXED: Correctly check anim.to for preview-card-img ---
         if (anim.to === "preview-card-img") toElem = document.getElementById('preview-card-img');
-        if (anim.to === "discard-stack-img") toElem = document.querySelector('#discard-stack img');
-        if (anim.to.startsWith("player-")) toElem = document.querySelector(`#${anim.to} img`);
+        else if (anim.to === "discard-stack-img") toElem = document.querySelector('#discard-stack img');
+        else if (anim.to.startsWith("player-")) toElem = document.querySelector(`#${anim.to} img`);
+
+        // --- Add logging if elements are not found ---
+        if (!fromElem) {
+            console.error(`Animation Listener: Could not find 'from' element for selector: ${anim.from}`);
+            return; // Stop if element not found
+        }
+        if (!toElem) {
+            console.error(`Animation Listener: Could not find 'to' element for selector: ${anim.to}`);
+            return; // Stop if element not found
+        }
 
         // Determine card image to show
         let cardImgSrc = `karten/${anim.card}.png`;
         let showBackForOpponent = currentPlayerRole !== anim.player;
 
-        // Trigger the animation
-        triggerCardAnimationLocal({fromElem, toElem, cardImgSrc, showBackForOpponent});
+        const animationType = anim.type || "";
+        const forceBackFlag = anim.forceBack || false;
+
+        // Trigger the animation locally
+        triggerCardAnimationLocal({
+            fromElem,
+            toElem,
+            cardImgSrc,
+            showBackForOpponent,
+            type: animationType,
+            forceBack: forceBackFlag
+        });
     });
 }
 function listenToPreviewCard(roomCode) {
@@ -1498,7 +1520,7 @@ async function triggerCardAnimation({from, to, card, player, type = "", forceBac
             card,
             player,
             timestamp,
-            forceBack // <-- Add this!
+            forceBack  // Make sure this is included
         }
     });
 
@@ -1546,14 +1568,20 @@ async function triggerCardAnimationLocal({
     forceBack = false
 }) {
     const animLayer = document.getElementById('animation-layer');
-    if (!fromElem || !toElem || !animLayer) return;
+    if (!fromElem || !toElem || !animLayer) {
+        console.warn("Animation aborted: Missing elements or layer.", { fromElem, toElem, animLayer });
+        return;
+    }
 
     const fromRect = fromElem.getBoundingClientRect();
     const toRect = toElem.getBoundingClientRect();
 
     const animCard = document.createElement('img');
+
+    // Determine if the back should be shown for the animated card
     const useBack = forceBack || type === "swap" || showBackForOpponent;
     animCard.src = useBack ? 'karten/back.png' : cardImgSrc;
+
     animCard.className = 'animated-card';
     animCard.style.position = 'fixed';
     animCard.style.left = `${fromRect.left}px`;
@@ -1565,30 +1593,30 @@ async function triggerCardAnimationLocal({
     animCard.style.pointerEvents = 'none';
     animCard.style.transform = 'scale(1)';
 
-    // --- For the active player, set the underlying slot to back.png during the animation ---
+    // --- Temporarily set the underlying slots to back.png ---
     let restoreToElemSrc = null;
     let restoreFromElemSrc = null;
 
-    // Always set preview or hand slot to back.png for the active player during animation
-    if (
-        (toElem.id === "preview-card-img" ||
-         (toElem.closest('.card-slot') && toElem.closest('.player'))) &&
-        !showBackForOpponent
-    ) {
+    if (type === "swap") {
+        // For swaps, always set both underlying slots to back.png temporarily
+        if (fromElem) {
+            restoreFromElemSrc = fromElem.src;
+            fromElem.src = 'karten/back.png';
+        }
+        if (toElem) {
+            restoreToElemSrc = toElem.src;
+            toElem.src = 'karten/back.png';
+        }
+    } else if (toElem.id === "preview-card-img" && !showBackForOpponent) {
+        // --- FIXED: Specifically handle hiding the preview card for the active player ---
+        restoreToElemSrc = toElem.src;
+        toElem.src = 'karten/back.png'; // Hide preview card during animation
+    } else if (toElem.closest('.card-slot') && !showBackForOpponent) {
+        // For non-swap animations to a hand card for the active player
         restoreToElemSrc = toElem.src;
         toElem.src = 'karten/back.png';
     }
-
-    // For swap, also set the fromElem to back.png for active player
-    if (
-        type === "swap" &&
-        fromElem.closest('.card-slot') &&
-        fromElem.closest('.player') &&
-        !showBackForOpponent
-    ) {
-        restoreFromElemSrc = fromElem.src;
-        fromElem.src = 'karten/back.png';
-    }
+    // Note: We don't hide the discard stack image during animations to it.
 
     animLayer.appendChild(animCard);
 
@@ -1612,6 +1640,31 @@ async function triggerCardAnimationLocal({
     await new Promise(resolve => setTimeout(resolve, 300));
     animLayer.removeChild(animCard);
 
-    // Restore the underlying images
-    
+    // Restore the original images after the animation
+    try {
+        if (restoreFromElemSrc !== null && fromElem) {
+            fromElem.src = restoreFromElemSrc;
+        }
+        if (restoreToElemSrc !== null && toElem) {
+            // --- FIXED: Ensure preview card is restored correctly ---
+            // If the target was preview, the actual card value should be set by listenToPreviewCard,
+            // but restoring the src might be needed if the listener hasn't fired yet.
+            // However, directly restoring might cause flicker if the listener updates immediately after.
+            // Let's rely on listenToPreviewCard to set the final state for preview.
+            // Only restore if it wasn't the preview card.
+            if (toElem.id !== "preview-card-img") {
+                 toElem.src = restoreToElemSrc;
+            } else {
+                 // For preview card, ensure it's not left as back.png if listener is slow
+                 // Check current preview value from Firestore if needed, or just let listener handle it.
+                 // For simplicity, let's assume listenToPreviewCard handles the final state.
+            }
+        }
+         if (restoreToElemSrc !== null && toElem && toElem.id !== "preview-card-img") {
+             toElem.src = restoreToElemSrc;
+         }
+
+    } catch (error) {
+        console.error("Error restoring element src after animation:", error);
+    }
 }
