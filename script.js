@@ -338,55 +338,59 @@ async function updateDiscardStackDisplay(roomCode) {
 }
 
 /**
- * Sets up the initial display of player cards based on Firestore data.
- * @param {string} roomCode - The unique identifier for the game room.
+ * Updates the display of a player's cards based on provided hand data.
  * @param {string} playerRole - 'player-1' or 'player-2'.
+ * @param {Array} playerHandData - The array representing the player's hand.
+ * @param {boolean} revealAll - If true, show card faces; otherwise, show backs.
  */
-async function displayPlayerCards(roomCode, playerRole, revealAll = false) {
-    if (!roomCode || !playerRole) {
-        console.error("displayPlayerCards: roomCode and playerRole are required.");
+// --- REMOVED roomCode parameter, ADDED playerHandData parameter ---
+function displayPlayerCards(playerRole, playerHandData, revealAll = false) {
+    if (!playerRole) {
+        console.error("displayPlayerCards: playerRole is required.");
         return;
     }
 
-    const roomRef = doc(db, 'gameRooms', roomCode);
+    // --- REMOVED Firestore fetching logic ---
 
-    try {
-        const roomSnap = await getDoc(roomRef);
-        if (!roomSnap.exists()) {
-            console.error(`Room ${roomCode}: Cannot display cards, room not found.`);
-            return;
-        }
-
-        const roomData = roomSnap.data();
-        const playerHandData = (playerRole === 'player-1') ? roomData.player1Hand : roomData.player2Hand;
-
-        if (!playerHandData || playerHandData.length !== 4) {
-            console.error(`Room ${roomCode}: Invalid or incomplete hand data for ${playerRole}.`, playerHandData);
-            return;
-        }
-
-        // Select the card slots for the current player
-        const playerCardSlots = document.querySelectorAll(`.player.${playerRole} .card-slot img`);
-
-        if (playerCardSlots.length !== 4) {
-            console.error(`Room ${roomCode}: Found ${playerCardSlots.length} card slots for ${playerRole}, expected 4.`);
-            return;
-        }
-
-        // Show card faces if revealAll, otherwise show backs
-        playerCardSlots.forEach((imgElement, index) => {
-            if (revealAll) {
-                imgElement.src = `karten/${playerHandData[index]}.png`;
-            } else {
-                imgElement.src = "karten/back.png";
-            }
-            imgElement.setAttribute("data-card", playerHandData[index]);
+    // Validate the provided hand data
+    if (!playerHandData || !Array.isArray(playerHandData) || playerHandData.length !== 4) {
+        console.error(`displayPlayerCards: Invalid or incomplete hand data provided for ${playerRole}.`, playerHandData);
+        // Optionally show empty slots or default backs
+        const playerCardSlotsOnError = document.querySelectorAll(`.player.${playerRole} .card-slot img`);
+        playerCardSlotsOnError.forEach((imgElement) => {
+            imgElement.src = "karten/back.png"; // Default to back on error
+            imgElement.setAttribute("data-card", "");
         });
-
-        console.log(`Room ${roomCode}: Initialized cards for ${playerRole}.`);
-    } catch (error) {
-        console.error(`Room ${roomCode}: Error displaying cards for ${playerRole}:`, error);
+        return;
     }
+
+    // Select the card slots for the current player
+    const playerCardSlots = document.querySelectorAll(`.player.${playerRole} .card-slot img`);
+
+    if (playerCardSlots.length !== 4) {
+        console.error(`displayPlayerCards: Found ${playerCardSlots.length} card slots for ${playerRole}, expected 4.`);
+        return;
+    }
+
+    // Show card faces if revealAll, otherwise show backs
+    playerCardSlots.forEach((imgElement, index) => {
+        const cardValue = playerHandData[index];
+        if (revealAll) {
+            // Ensure cardValue is valid before setting src
+            if (cardValue !== null && cardValue !== undefined) {
+                imgElement.src = `karten/${cardValue}.png`;
+            } else {
+                // Handle null/undefined cards if they can occur in the hand
+                imgElement.src = "karten/empty.png"; // Or back.png if preferred
+            }
+        } else {
+            imgElement.src = "karten/back.png";
+        }
+        // Store the actual card value in data attribute regardless of reveal state
+        imgElement.setAttribute("data-card", (cardValue !== null && cardValue !== undefined) ? cardValue : "");
+    });
+
+    // console.log(`displayPlayerCards: Updated cards for ${playerRole}. RevealAll: ${revealAll}`);
 }
 
 
@@ -551,23 +555,26 @@ function listenToPreviewCard(roomCode) {
         const data = docSnap.data();
         const previewCard = data.previewCard;
         const gameState = data.gameState;
+        const caboCaller = data.caboCaller; // Get the cabo caller
 
-        // Determine if it's this player's turn
+        // --- FIXED: Determine if it's this player's turn, including caboCalled state ---
         let isMyTurn = false;
         if (
             (gameState === "player1Turn" && currentPlayerRole === "player-1") ||
-            (gameState === "player2Turn" && currentPlayerRole === "player-2")
+            (gameState === "player2Turn" && currentPlayerRole === "player-2") ||
+            // --- Add this condition for caboCalled state ---
+            (gameState === "caboCalled" && caboCaller !== currentPlayerRole)
         ) {
             isMyTurn = true;
         }
 
         // Show back.png if not your turn and a card is present, else show face or empty
         if (previewCard === null || previewCard === undefined) {
-            showPreviewCard(null);
+            showPreviewCard(null); // Show empty if null/undefined
         } else if (isMyTurn) {
-            showPreviewCard(previewCard, false);
+            showPreviewCard(previewCard, false); // Show face if it's my turn (or my final turn in caboCalled)
         } else {
-            showPreviewCard(previewCard, true);
+            showPreviewCard(previewCard, true); // Show back if it's not my turn
         }
     });
 }
@@ -656,7 +663,7 @@ async function handlePlayer1Turn(caboMode = false) {
                         } else {
                             setGameState("player2Turn");
                         }
-                    }, "draw");
+                    }, "draw", caboMode);
                 } else {
                     cardTaken = false;
                 }
@@ -689,7 +696,7 @@ async function handlePlayer1Turn(caboMode = false) {
                         } else {
                             setGameState("player2Turn");
                         }
-                    }, "discard");
+                    }, "discard", caboMode);
                 } else {
                     cardTaken = false;
                 }
@@ -736,7 +743,7 @@ async function handlePlayer2Turn(caboMode = false) {
                         } else {
                             setGameState("player1Turn");
                         }
-                    }, "draw");
+                    }, "draw", caboMode);
                 } else {
                     cardTaken = false;
                 }
@@ -769,7 +776,7 @@ async function handlePlayer2Turn(caboMode = false) {
                         } else {
                             setGameState("player1Turn");
                         }
-                    }, "discard");
+                    }, "discard", caboMode);
                 } else {
                     cardTaken = false;
                 }
@@ -808,43 +815,105 @@ async function handleCaboCalled() {
 }
 
 async function handleScoringPhase() {
+    // --- Delay to allow Firestore propagation ---
+    await new Promise(resolve => setTimeout(resolve, 500)); // Keep or adjust delay as needed
+
     const roomRef = doc(db, 'gameRooms', currentRoomCode);
-    const roomSnap = await getDoc(roomRef);
-    if (!roomSnap.exists()) return;
-    const roomData = roomSnap.data();
+    let roomData;
 
-    // Flip all cards face up for both players
-    await displayPlayerCards(currentRoomCode, "player-1", true);
-    await displayPlayerCards(currentRoomCode, "player-2", true);
+    try {
+        const roomSnap = await getDoc(roomRef);
+        if (!roomSnap.exists()) {
+            console.error("Scoring Phase: Room does not exist!");
+            return;
+        }
+        roomData = roomSnap.data();
 
-    // Disable all interactions except reset
-    clearStackClickHandlers();
-    // Disable pointer events for stacks and cards
-    document.getElementById('draw-stack').style.pointerEvents = 'none';
-    document.getElementById('discard-stack').style.pointerEvents = 'none';
-    document.querySelectorAll('.card-slot img').forEach(img => {
-        img.style.pointerEvents = 'none';
-    });
+        // --- Ensure we have valid hand data ---
+        if (!roomData.player1Hand || !roomData.player2Hand || roomData.player1Hand.length !== 4 || roomData.player2Hand.length !== 4) {
+            console.error("Scoring Phase: Invalid hand data found!", roomData);
+            showScoreOverlay("Error", "Error", "Invalid hand data during scoring.");
+            return;
+        }
 
-    // Calculate scores based on player hands
-    const player1Score = calculateScore(roomData.player1Hand);
-    const player2Score = calculateScore(roomData.player2Hand);
+        // --- Direct DOM Manipulation to Reveal Cards ---
+        console.log("Scoring Phase: Directly revealing cards...");
 
-    // Determine winner
-    let winnerText = "";
-    if (player1Score < player2Score) {
-        winnerText = "Player 1 wins! 🎉";
-    } else if (player2Score < player1Score) {
-        winnerText = "Player 2 wins! 🎉";
-    } else {
-        winnerText = "It's a tie!";
+        // Reveal Player 1 Cards
+        const player1Slots = document.querySelectorAll('.player.player-1 .card-slot img');
+        if (player1Slots.length === 4) {
+            roomData.player1Hand.forEach((cardValue, index) => {
+                if (player1Slots[index]) {
+                    if (cardValue !== null && cardValue !== undefined) {
+                        player1Slots[index].src = `karten/${cardValue}.png`;
+                    } else {
+                        player1Slots[index].src = 'karten/empty.png'; // Or back.png
+                    }
+                }
+            });
+        } else {
+            console.error("Scoring Phase: Could not find all card slots for Player 1.");
+        }
+
+        // Reveal Player 2 Cards
+        const player2Slots = document.querySelectorAll('.player.player-2 .card-slot img');
+        if (player2Slots.length === 4) {
+            roomData.player2Hand.forEach((cardValue, index) => {
+                if (player2Slots[index]) {
+                    if (cardValue !== null && cardValue !== undefined) {
+                        player2Slots[index].src = `karten/${cardValue}.png`;
+                    } else {
+                        player2Slots[index].src = 'karten/empty.png'; // Or back.png
+                    }
+                }
+            });
+        } else {
+            console.error("Scoring Phase: Could not find all card slots for Player 2.");
+        }
+        // --- End of Direct DOM Manipulation ---
+
+
+        // Disable all interactions except reset
+        clearStackClickHandlers();
+        const drawStackElem = document.getElementById('draw-stack');
+        const discardStackElem = document.getElementById('discard-stack');
+        if (drawStackElem) drawStackElem.style.pointerEvents = 'none';
+        if (discardStackElem) discardStackElem.style.pointerEvents = 'none';
+        document.querySelectorAll('.card-slot img').forEach(img => {
+            img.style.pointerEvents = 'none';
+            img.onclick = null;
+        });
+         const previewImg = document.getElementById('preview-card-img');
+         if (previewImg) {
+              previewImg.style.pointerEvents = 'none';
+              previewImg.onclick = null;
+         }
+
+
+        // Calculate scores based on the fetched player hands
+        const player1Score = calculateScore(roomData.player1Hand);
+        const player2Score = calculateScore(roomData.player2Hand);
+
+        // Determine winner
+        let winnerText = "";
+        if (player1Score < player2Score) {
+            winnerText = "Player 1 wins! 🎉";
+        } else if (player2Score < player1Score) {
+            winnerText = "Player 2 wins! 🎉";
+        } else {
+            winnerText = "It's a tie!";
+        }
+
+        // Show overlay with scores and winner
+        showScoreOverlay(player1Score, player2Score, winnerText);
+
+        // Launch confetti effect
+        launchConfetti();
+
+    } catch (error) {
+        console.error("Error during Scoring Phase:", error);
+        showScoreOverlay("Error", "Error", "An error occurred during scoring.");
     }
-
-    // Show overlay with scores and winner
-    showScoreOverlay(player1Score, player2Score, winnerText);
-
-    // Launch confetti effect
-    launchConfetti();
 }
 
 function calculateScore(playerHand) {
@@ -859,7 +928,7 @@ function calculateScore(playerHand) {
 /**
  * --- Helper function to allow only switch or discard after taking a card ---
  */
-async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
+async function enableSwitchOrDiscard(takenCard, player, onComplete, source, caboMode = false) {
     // Remove stack click handlers to prevent taking another card
     clearStackClickHandlers();
 
@@ -915,7 +984,7 @@ async function enableSwitchOrDiscard(takenCard, player, onComplete, source) {
         });
             await clearPreviewCard();
             await updateDiscardStackDisplay(currentRoomCode);
-            displayPlayerCards(currentRoomCode, player);
+            displayPlayerCards(player, playerHand, caboMode);
 
             // Remove hand card click handlers after action
             playerCardSlots.forEach(slot => slot.onclick = null);
@@ -1178,8 +1247,8 @@ function swap(player = currentPlayerRole, onComplete) {
                     });
 
                     // Update UI
-                    await displayPlayerCards(currentRoomCode, player);
-                    await displayPlayerCards(currentRoomCode, opponent);
+                    displayPlayerCards(player, playerHand, false);
+                    displayPlayerCards(opponent, opponentHand, false);
 
                     // End turn
                     if (onComplete) onComplete();
@@ -1349,6 +1418,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 
                 await initializeGameRoom(currentRoomCode);
                 console.log('Room reset successfully');
+                cardTaken = false; // Reset cardTaken state
                 updateDiscardStackDisplay(currentRoomCode); // Update discard stack display after reset
                 const currentGameState = (await getDoc(doc(db, 'gameRooms', currentRoomCode))).data().gameState;
                 
@@ -1360,8 +1430,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     listenToGameState(currentRoomCode);
 
     // --- Display Player Cards ---
-    await displayPlayerCards(currentRoomCode, currentPlayerRole);
-    const currentGameState = (await getDoc(doc(db, 'gameRooms', currentRoomCode))).data().gameState;
+    try {
+        const initialRoomSnap = await getDoc(doc(db, 'gameRooms', currentRoomCode));
+        if (initialRoomSnap.exists()) {
+            const initialRoomData = initialRoomSnap.data();
+            const initialHand = (currentPlayerRole === 'player-1') ? initialRoomData.player1Hand : initialRoomData.player2Hand;
+            // Display own cards initially (usually hidden, unless scoring state on load)
+            displayPlayerCards(currentPlayerRole, initialHand, initialRoomData.gameState === 'scoring');
+
+            // Display opponent's cards as backs
+            const opponentRole = (currentPlayerRole === 'player-1') ? 'player-2' : 'player-1';
+            const opponentHand = (opponentRole === 'player-1') ? initialRoomData.player1Hand : initialRoomData.player2Hand;
+            if (opponentHand) { // Check if opponent hand exists
+                 displayPlayerCards(opponentRole, opponentHand, false); // Always show opponent back initially
+            } else {
+                 // Handle case where opponent hand might not exist yet (unlikely but safe)
+                 displayPlayerCards(opponentRole, [null,null,null,null], false);
+            }
+
+        } else {
+             console.warn("Room not found on initial load, cards might not display until reset/created.");
+             // Display empty/back cards if room doesn't exist
+             displayPlayerCards(currentPlayerRole, [null,null,null,null], false);
+             const opponentRole = (currentPlayerRole === 'player-1') ? 'player-2' : 'player-1';
+             displayPlayerCards(opponentRole, [null,null,null,null], false);
+        }
+    } catch (error) {
+         console.error("Error fetching initial room state for card display:", error);
+         // Display empty/back cards on error
+         displayPlayerCards(currentPlayerRole, [null,null,null,null], false);
+         const opponentRole = (currentPlayerRole === 'player-1') ? 'player-2' : 'player-1';
+         displayPlayerCards(opponentRole, [null,null,null,null], false);
+    }
     
 
     console.log("Game initialization complete.");
@@ -1578,7 +1678,6 @@ async function triggerCardAnimationLocal({
 
     const animCard = document.createElement('img');
 
-    // Determine if the back should be shown for the animated card
     const useBack = forceBack || type === "swap" || showBackForOpponent;
     animCard.src = useBack ? 'karten/back.png' : cardImgSrc;
 
@@ -1593,35 +1692,21 @@ async function triggerCardAnimationLocal({
     animCard.style.pointerEvents = 'none';
     animCard.style.transform = 'scale(1)';
 
-    // --- Temporarily set the underlying slots to back.png ---
     let restoreToElemSrc = null;
     let restoreFromElemSrc = null;
 
+    // --- Logic to temporarily hide elements remains the same ---
     if (type === "swap") {
-        // For swaps, always set both underlying slots to back.png temporarily
-        if (fromElem) {
-            restoreFromElemSrc = fromElem.src;
-            fromElem.src = 'karten/back.png';
-        }
-        if (toElem) {
-            restoreToElemSrc = toElem.src;
-            toElem.src = 'karten/back.png';
-        }
+        if (fromElem) { restoreFromElemSrc = fromElem.src; fromElem.src = 'karten/back.png'; }
+        if (toElem) { restoreToElemSrc = toElem.src; toElem.src = 'karten/back.png'; }
     } else if (toElem.id === "preview-card-img" && !showBackForOpponent) {
-        // --- FIXED: Specifically handle hiding the preview card for the active player ---
-        restoreToElemSrc = toElem.src;
-        toElem.src = 'karten/back.png'; // Hide preview card during animation
+        restoreToElemSrc = toElem.src; toElem.src = 'karten/back.png';
     } else if (toElem.closest('.card-slot') && !showBackForOpponent) {
-        // For non-swap animations to a hand card for the active player
-        restoreToElemSrc = toElem.src;
-        toElem.src = 'karten/back.png';
+        restoreToElemSrc = toElem.src; toElem.src = 'karten/back.png';
     }
-    // Note: We don't hide the discard stack image during animations to it.
 
     animLayer.appendChild(animCard);
-
-    // Force reflow for transition
-    void animCard.offsetWidth;
+    void animCard.offsetWidth; // Force reflow
 
     // Move and enlarge
     animCard.style.left = `${toRect.left}px`;
@@ -1630,40 +1715,47 @@ async function triggerCardAnimationLocal({
     animCard.style.height = `${toRect.height}px`;
     animCard.style.transform = 'scale(1.2)';
 
-    // Wait for most of the move duration
-    await new Promise(resolve => setTimeout(resolve, 1200));
+    await new Promise(resolve => setTimeout(resolve, 1200)); // Wait for move
 
-    // Shrink quickly at the end
+    // Shrink
     animCard.style.transform = 'scale(1)';
     animCard.style.transition = 'transform 0.3s cubic-bezier(.7,0,1,1)';
 
-    await new Promise(resolve => setTimeout(resolve, 300));
-    animLayer.removeChild(animCard);
+    await new Promise(resolve => setTimeout(resolve, 300)); // Wait for shrink
 
-    // Restore the original images after the animation
+    // --- Remove animCard ---
+    if (animLayer.contains(animCard)) {
+        animLayer.removeChild(animCard);
+    }
+
+    // --- Fetch gameState HERE before restoring ---
+    let currentGameState = null;
     try {
-        if (restoreFromElemSrc !== null && fromElem) {
+        const roomRef = doc(db, 'gameRooms', currentRoomCode);
+        const roomSnap = await getDoc(roomRef);
+        if (roomSnap.exists()) {
+            currentGameState = roomSnap.data().gameState;
+        }
+    } catch (fetchError) {
+        console.error("Error fetching gameState in triggerCardAnimationLocal:", fetchError);
+        currentGameState = null; // Fallback
+    }
+    // --- End of Fetch ---
+
+
+    // --- FIXED: Restore the original images ONLY if NOT in scoring phase ---
+    try {
+        // Only restore the source element if NOT in scoring phase
+        if (currentGameState !== "scoring" && restoreFromElemSrc !== null && fromElem) { // <<< ADDED gameState check
             fromElem.src = restoreFromElemSrc;
         }
-        if (restoreToElemSrc !== null && toElem) {
-            // --- FIXED: Ensure preview card is restored correctly ---
-            // If the target was preview, the actual card value should be set by listenToPreviewCard,
-            // but restoring the src might be needed if the listener hasn't fired yet.
-            // However, directly restoring might cause flicker if the listener updates immediately after.
-            // Let's rely on listenToPreviewCard to set the final state for preview.
-            // Only restore if it wasn't the preview card.
+
+        // Only restore the target element if NOT in scoring phase
+        if (currentGameState !== "scoring" && restoreToElemSrc !== null && toElem) { // <<< Existing gameState check
             if (toElem.id !== "preview-card-img") {
                  toElem.src = restoreToElemSrc;
-            } else {
-                 // For preview card, ensure it's not left as back.png if listener is slow
-                 // Check current preview value from Firestore if needed, or just let listener handle it.
-                 // For simplicity, let's assume listenToPreviewCard handles the final state.
             }
         }
-         if (restoreToElemSrc !== null && toElem && toElem.id !== "preview-card-img") {
-             toElem.src = restoreToElemSrc;
-         }
-
     } catch (error) {
         console.error("Error restoring element src after animation:", error);
     }
