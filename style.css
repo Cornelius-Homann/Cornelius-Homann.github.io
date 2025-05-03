@@ -36,7 +36,7 @@ html, body {
 .game-board {
     display: flex; /* Use Flexbox */
     flex-direction: column; /* Stack player areas and stacks vertically */
-    justify-content: space-between; /* Push Player areas to top/bottom */
+    justify-content: center; /* Pack items towards the center vertically */
     align-items: center; /* Center items horizontally */
     width: 100%; /* Take full width of page-container padding */
     height: 100%; /* Take full height of page-container padding */
@@ -45,7 +45,7 @@ html, body {
     text-align: center;
     /* background-color: rgba(0, 0, 0, 0.3); */ /* REMOVED TINT */
     border-radius: 10px;
-    padding: 1vmin; /* Padding inside the board */
+    padding: 0.5vmin 1vmin; /* Padding inside the board */
 }
 
 /* Player layout - Changed back to Grid */
@@ -60,20 +60,16 @@ html, body {
     width: fit-content; /* Adjust width to content */
     max-width: 100%; /* Ensure it doesn't overflow */
     gap: 1.5vmin; /* Responsive gap between cards */
-    padding: 1vmin 0; /* Small vertical padding */
+    padding: 0.5vmin 0; /* Small vertical padding */
     margin: 0 auto; /* Center the grid container itself horizontally */
 }
 
-/* Player 1 rotation (applied via JS adding class 'rotated' to #page-container) */
-#page-container.rotated .player.player-1 {
-    transform: rotate(180deg);
+.phase-indicator.rotated {
+    transform: rotate(180deg); /* Combine transforms */
 }
-/* Counter-rotate images within rotated player 1 area */
-#page-container.rotated .player.player-1 img {
-     transform: rotate(0deg); /* Ensure images are upright */
+.player-1 {
+    transform: rotate(180deg)
 }
-
-
 /* Card slot sizing */
 .card-slot {
     position: relative; /* For potential future overlays */
@@ -104,8 +100,8 @@ html, body {
     justify-content: center;
     gap: 2vmin; /* Responsive gap between stack items */
     width: 100%;
-    margin: 1vh 0; /* Reduced vertical margin */
-    padding: 1vmin 0;
+    margin: 0.5vh 0; /* Reduced vertical margin */
+    padding: 0.5vmin 0;
     /* transform: rotate(180deg); applied via JS to #page-container */
 }
 /* Counter-rotation for the stacks container when page is rotated */
@@ -294,7 +290,7 @@ html, body {
 /* Example: Adjustments for very small screens (Portrait) */
 @media (max-width: 480px) and (orientation: portrait) {
     .player { gap: 1vmin; }
-    .stacks { gap: 1.5vmin; }
+    .stacks { gap: 1.5vmin; margin: 0.2vh 0; }
     .card-slot, .draw-stack, .discard-stack {
         width: 15vmin; /* Slightly larger cards relative to small screen */
         height: calc(15vmin * 1.4);
@@ -317,6 +313,7 @@ html, body {
         flex-direction: row; /* Side-by-side layout */
         justify-content: space-around; /* Space out elements horizontally */
         align-items: center;
+        padding: 1vmin 0.5vmin; /* Adjust padding for landscape */
     }
     .player {
         /* Keep 2x2 grid layout in landscape too, adjust container size/position */
@@ -326,15 +323,15 @@ html, body {
         width: fit-content; /* Adjust width */
         height: auto; /* Adjust height */
         gap: 1vh; /* Vertical gap */
-        padding: 0 1vw;
+        padding: 0 0.5vw;
         margin: 0; /* Remove auto margin if needed */
     }
     .stacks {
         flex-direction: column; /* Stack stack items vertically */
         width: auto;
         height: 100%;
-        gap: 1.5vh; /* Vertical gap */
-        margin: 0 2vw; /* Horizontal margin */
+        gap: 1vh; /* Vertical gap */
+        margin: 0 1vw; /* Horizontal margin */
     }
     /* Adjust card sizes for landscape */
     .card-slot, .draw-stack, .discard-stack {
@@ -355,10 +352,11 @@ html, body {
         max-width: 65px;
         max-height: calc(65px * 1.4);
     }
+    
     /* Adjust button/indicator sizes */
      .game-action-button { font-size: max(1.6vh, 10px); padding: max(0.8vh, 5px) max(1.5vh, 8px); }
      .cabo-button { width: max(8vh, 45px); height: max(8vh, 45px); font-size: max(1.8vh, 12px); }
-     .phase-indicator { font-size: max(1.6vh, 10px); padding: max(0.7vh, 4px) max(2vh, 12px); min-width: max(18vh, 120px); }
+     .phase-indicator { font-size: max(1.6vh, 10px); padding: max(0.7vh, 4px) max(2vh, 12px); min-width: max(18vh, 120px); top: 1vmin; }
 
     /* Rotation checks remain the same */
 }
